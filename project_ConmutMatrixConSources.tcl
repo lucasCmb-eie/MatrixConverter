@@ -50,21 +50,11 @@ proc checkRequiredFiles { origin_dir} {
 
   return $status
 }
-# Set the reference directory for source file relative paths (by default the value is script directory path)
+# Set the reference directory to where the script is
 set origin_dir [file dirname [info script]]
-
-# Use origin directory path location variable, if specified in the tcl shell
-if { [info exists ::origin_dir_loc] } {
-  set origin_dir $::origin_dir_loc
-}
 
 # Set the project name
 set _xil_proj_name_ "project_ConmutMatrix"
-
-# Use project name variable, if specified in the tcl shell
-if { [info exists ::user_project_name] } {
-  set _xil_proj_name_ $::user_project_name
-}
 
 variable script_file
 set script_file "project_ConmutMatrixConSources.tcl"
@@ -129,7 +119,7 @@ if { $validate_required } {
 }
 
 # Create project
-create_project ${_xil_proj_name_} $origin_dir/${_xil_proj_name_} -part xc7z007sclg400-1
+create_project ${_xil_proj_name_} $origin_dir/${_xil_proj_name_}
 
 # Set the directory path for the new project
 set proj_dir [get_property directory [current_project]]
@@ -139,7 +129,6 @@ set proj_dir [get_property directory [current_project]]
 
 # Set project properties
 set obj [current_project]
-set_property -name "board_part" -value "realdigital.org:blackboard_d:part0:1.2" -objects $obj
 set_property -name "default_lib" -value "xil_defaultlib" -objects $obj
 set_property -name "enable_resource_estimation" -value "0" -objects $obj
 set_property -name "enable_vhdl_2008" -value "1" -objects $obj
