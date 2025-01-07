@@ -17,7 +17,7 @@ use IEEE.STD_LOGIC_UNSIGNED.ALL;
 Library UNISIM;
 use UNISIM.vcomponents.all;
 
-entity TOP is
+entity Modulador is
    port (
 --
 --	Pines exteriores de la FPGA
@@ -53,9 +53,9 @@ entity TOP is
 			DIRECCIONES : out		std_logic_vector (17 downto 0); 
 			
 			DATOS		: inout	    std_logic_vector (31 downto 0));
-end TOP;
+end Modulador;
 
-architecture Behavioral of TOP is
+architecture Behavioral of Modulador is
 -- Senales de reloj (sincronizacin)
 signal clock50 : std_logic;
 -- Senales clockv : std_logic;
