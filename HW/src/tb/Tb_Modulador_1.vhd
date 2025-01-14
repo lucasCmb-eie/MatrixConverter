@@ -59,7 +59,7 @@ architecture tb of tb_modulador is
     signal direcciones : std_logic_vector (17 downto 0);
     signal datos       : std_logic_vector (31 downto 0);
 
-    constant TbPeriod : time := 5 ns; -- EDIT Put right period here
+    constant TbPeriod : time := 5 ns; -- 200MHz
     signal TbClock : std_logic := '0';
     signal TbSimEnded : std_logic := '0';
 
@@ -212,7 +212,7 @@ begin
                  Ttot := (T1 + T2 + T3 + T4 + T5 + T6 + T7 + T8 + T9 + T10 + T11 + T12 + T13); 
              
                  write(line_output, string'("Valores Direcciones, "));
-                 write(line_output, string'("multiplicar por 0.02 ns para obtener valor temporal"));
+                 write(line_output, string'("multiplicar por 0.005 us para obtener valor temporal"));
                  writeline(ArchivoSalida, line_output);
                  
                  write(line_output, string'("N1: "));
