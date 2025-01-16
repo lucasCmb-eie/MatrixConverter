@@ -31,33 +31,21 @@ end tb_modulador;
 architecture tb of tb_modulador is
 
     component modulador
-        port (pul_down    : in std_logic;
-              pul_up      : in std_logic;
-              reg_down    : in std_logic;
-              reg_up      : in std_logic;
-              reloj       : in std_logic;
-              selector    : in std_logic_vector (7 downto 0);
-              al_o        : in std_logic_vector (10 downto 0);
-              be_i        : in std_logic_vector (10 downto 0);
-              q_i         : in std_logic_vector (8 downto 0);
-              phi_i       : in std_logic_vector (10 downto 0);
-              auxi00      : out std_logic;
-              auxi01      : out std_logic;
-              auxi02      : out std_logic;
-              direcciones : out std_logic_vector (17 downto 0);
-              datos       : inout std_logic_vector (31 downto 0));
+        port (i_reloj     : in std_logic;
+              i_al_o      : in std_logic_vector (10 downto 0);
+              i_be_i      : in std_logic_vector (10 downto 0);
+              i_q_i       : in std_logic_vector (8 downto 0);
+              i_phi_i     : in std_logic_vector (10 downto 0);
+              o_fin_ciclo    : out std_logic;
+              o_inicio_ciclo : out std_logic;
+              o_fin_calc_ts  : out std_logic;
+              o_direcciones  : out std_logic_vector (17 downto 0));
     end component;
 
-    signal pul_down    : std_logic;
-    signal pul_up      : std_logic;
-    signal reg_down    : std_logic;
-    signal reg_up      : std_logic;
-    signal selector    : std_logic_vector (7 downto 0);
     signal auxi00      : std_logic;
     signal auxi01      : std_logic;
     signal auxi02      : std_logic;
     signal direcciones : std_logic_vector (17 downto 0);
-    signal datos       : std_logic_vector (31 downto 0);
 
     constant TbPeriod : time := 5 ns; -- 200MHz
     signal TbClock : std_logic := '0';
@@ -76,21 +64,15 @@ architecture tb of tb_modulador is
 begin
 
     dut : modulador
-    port map (pul_down    => pul_down,
-              pul_up      => pul_up,
-              reg_down    => reg_down,
-              reg_up      => reg_up,
-              reloj       => TbClock,
-              selector    => selector,
-              al_o        => al_o,
-              be_i        => be_i,
-              q_i         => q_i,
-              phi_i       => phi_i,
-              auxi00      => auxi00,
-              auxi01      => auxi01,
-              auxi02      => auxi02,
-              direcciones => direcciones,
-              datos       => datos);
+    port map (i_reloj       => TbClock,
+              i_al_o        => al_o,
+              i_be_i        => be_i,
+              i_q_i         => q_i,
+              i_phi_i       => phi_i,
+              o_fin_ciclo    => auxi00,
+              o_inicio_ciclo => auxi01,
+              o_fin_calc_ts  => auxi02,
+              o_direcciones  => direcciones);
 
     -- Clock process definitions
    RELOJ_process :process

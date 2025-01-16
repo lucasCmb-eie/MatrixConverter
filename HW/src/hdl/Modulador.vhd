@@ -23,23 +23,16 @@ library unisim;
 
 entity modulador is
   port (
-    pul_down : in    std_logic;                     --! Sin uso
-    pul_up   : in    std_logic;                     --! Sin uso
-    reg_down : in    std_logic;                     --! Sin uso
-    reg_up   : in    std_logic;                     --! Sin uso
-    reloj    : in    std_logic;                     --! Entrada de 200 MHz
-    selector : in    std_logic_vector(7 downto 0);  --! Sin uso
-    al_o     : in    std_logic_vector(10 downto 0); --! Angulo alpha de la corriente de salida
-    be_i     : in    std_logic_vector(10 downto 0); --! Angulo beta de la tension de entrada
-    q_i      : in    std_logic_vector(8 downto 0);  --! Voltage Transfer Ratio
-    phi_i    : in    std_logic_vector(10 downto 0); --! Desfasaje entre corriente de salida y tension de entrada a la matriz
+    i_reloj     : in    std_logic;                     --! Entrada de 200 MHz
+    i_al_o      : in    std_logic_vector(10 downto 0); --! Angulo alpha de la corriente de salida
+    i_be_i      : in    std_logic_vector(10 downto 0); --! Angulo beta de la tension de entrada
+    i_q_i       : in    std_logic_vector(8 downto 0);  --! Voltage Transfer Ratio
+    i_phi_i     : in    std_logic_vector(10 downto 0); --! Desfasaje entre corriente de salida y tension de entrada a la matriz
 
-    auxi00      : out   std_logic;                     --! Indica Fin de Ciclo
-    auxi01      : out   std_logic;                     --! Indica Inicio de Ciclo
-    auxi02      : out   std_logic;                     --! Indica que el calculo de las salidas finalizo (Ts)
-    direcciones : out   std_logic_vector(17 downto 0); --! Salida con las señales de las conmutaciones
-
-    datos : inout std_logic_vector(31 downto 0) --! Sin uso. Siempre vale Z
+    o_fin_ciclo    : out   std_logic;                     --! Indica Fin de Ciclo
+    o_inicio_ciclo : out   std_logic;                     --! Indica Inicio de Ciclo
+    o_fin_calc_ts  : out   std_logic;                     --! Indica que el calculo de las salidas finalizo (Ts)
+    o_direcciones  : out   std_logic_vector(17 downto 0) --! Salida con las señales de las conmutaciones
   );
 end entity modulador;
 
@@ -47,22 +40,22 @@ architecture behavioral of modulador is
 
   signal clock100 : std_logic; --! Sin uso
 
-  signal op1_suma,    op2_suma  : std_logic_vector(10 downto 0) := "00000000000"; --! Señales para realizar una suma
-  signal resul_suma,  acumul    : std_logic_vector(10 downto 0);
-  signal mod_profp              : std_logic_vector(35 downto 0);
-  signal mod_profa,   mod_profb : std_logic_vector(17 downto 0) := "000000000000000000";
-  signal pro_profp              : std_logic_vector(35 downto 0);
-  signal pro_profa,   pro_profb : std_logic_vector(17 downto 0) := "000000000000000000";
-  signal procos00               : std_logic_vector(17 downto 0) := "000000000000000000";
-  signal procos01               : std_logic_vector(17 downto 0) := "000000000000000000";
-  signal procos02               : std_logic_vector(17 downto 0) := "000000000000000000";
-  signal procos03               : std_logic_vector(17 downto 0) := "000000000000000000";
-  signal contador_pwm           : std_logic_vector(9 downto 0)  := "0000001000";
-  signal ciclo_cnt              : std_logic_vector(10 downto 0) := "00001000000"; --! Sin uso
-  signal ciclo_end              : std_logic                     := '0'; --! Sin Uso - Afecta a auxi00
-  signal ciclo_ini              : std_logic                     := '0'; --! Sin Uso - Afecta a auxi01
-  signal calculo_end            : std_logic                     := '0'; --! Afecta a auxi02 
-  signal hi_bits                : std_logic                     := '0';
+  signal op1_suma,   op2_suma  : std_logic_vector(10 downto 0) := "00000000000"; --! Señales para realizar una suma
+  signal resul_suma, acumul    : std_logic_vector(10 downto 0);
+  signal mod_profp             : std_logic_vector(35 downto 0);
+  signal mod_profa,  mod_profb : std_logic_vector(17 downto 0) := "000000000000000000";
+  signal pro_profp             : std_logic_vector(35 downto 0);
+  signal pro_profa,  pro_profb : std_logic_vector(17 downto 0) := "000000000000000000";
+  signal procos00              : std_logic_vector(17 downto 0) := "000000000000000000";
+  signal procos01              : std_logic_vector(17 downto 0) := "000000000000000000";
+  signal procos02              : std_logic_vector(17 downto 0) := "000000000000000000";
+  signal procos03              : std_logic_vector(17 downto 0) := "000000000000000000";
+  signal contador_pwm          : std_logic_vector(9 downto 0)  := "0000001000";
+  signal ciclo_cnt             : std_logic_vector(10 downto 0) := "00001000000"; --! Sin uso
+  signal ciclo_end             : std_logic                     := '0';           --! Sin Uso - Afecta a auxi00
+  signal ciclo_ini             : std_logic                     := '0';           --! Sin Uso - Afecta a auxi01
+  signal calculo_end           : std_logic                     := '0';           --! Afecta a auxi02
+  signal hi_bits               : std_logic                     := '0';
 
   signal sw_puntero    : std_logic_vector(4 downto 0) := "00000";
   signal switch_matrix : std_logic_vector(8 downto 0) := "000000000";
@@ -72,27 +65,27 @@ architecture behavioral of modulador is
   signal ddabs03       : std_logic_vector(3 downto 0) := "0000";
   signal ddabs04       : std_logic_vector(3 downto 0) := "0000";
 
-  signal swseq01              : std_logic_vector(8 downto 0) := "001001001";
-  signal swseq02,     swseq03 : std_logic_vector(8 downto 0) := "001001001";
-  signal swseq04              : std_logic_vector(8 downto 0) := "010010010";
-  signal swseq05,     swseq06 : std_logic_vector(8 downto 0) := "100100100";
-  signal swseq07              : std_logic_vector(8 downto 0) := "100100100";
-  signal swseq08,     swseq09 : std_logic_vector(8 downto 0) := "100100100";
-  signal swseq10              : std_logic_vector(8 downto 0) := "010010010";
-  signal swseq11,     swseq12 : std_logic_vector(8 downto 0) := "001001001";
-  signal swseq13              : std_logic_vector(8 downto 0) := "001001001";
-  signal sw_sel               : std_logic_vector(8 downto 0);
+  signal swseq01             : std_logic_vector(8 downto 0) := "001001001";
+  signal swseq02,    swseq03 : std_logic_vector(8 downto 0) := "001001001";
+  signal swseq04             : std_logic_vector(8 downto 0) := "010010010";
+  signal swseq05,    swseq06 : std_logic_vector(8 downto 0) := "100100100";
+  signal swseq07             : std_logic_vector(8 downto 0) := "100100100";
+  signal swseq08,    swseq09 : std_logic_vector(8 downto 0) := "100100100";
+  signal swseq10             : std_logic_vector(8 downto 0) := "010010010";
+  signal swseq11,    swseq12 : std_logic_vector(8 downto 0) := "001001001";
+  signal swseq13             : std_logic_vector(8 downto 0) := "001001001";
+  signal sw_sel              : std_logic_vector(8 downto 0);
 
-  signal dela01              : std_logic_vector(9 downto 0) := "0000000000";
-  signal dela02,      dela03 : std_logic_vector(9 downto 0) := "0000000000";
-  signal dela04              : std_logic_vector(9 downto 0) := "0000000000";
-  signal dela05,      dela06 : std_logic_vector(9 downto 0) := "0000000000";
-  signal dela07              : std_logic_vector(9 downto 0) := "0000000000";
-  signal dela08,      dela09 : std_logic_vector(9 downto 0) := "0000000000";
-  signal dela10              : std_logic_vector(9 downto 0) := "0000000000";
-  signal dela11,      dela12 : std_logic_vector(9 downto 0) := "0000000000";
-  signal dela13              : std_logic_vector(9 downto 0) := "0000000000";
-  signal dela_sel            : std_logic_vector(9 downto 0);
+  signal dela01             : std_logic_vector(9 downto 0) := "0000000000";
+  signal dela02,     dela03 : std_logic_vector(9 downto 0) := "0000000000";
+  signal dela04             : std_logic_vector(9 downto 0) := "0000000000";
+  signal dela05,     dela06 : std_logic_vector(9 downto 0) := "0000000000";
+  signal dela07             : std_logic_vector(9 downto 0) := "0000000000";
+  signal dela08,     dela09 : std_logic_vector(9 downto 0) := "0000000000";
+  signal dela10             : std_logic_vector(9 downto 0) := "0000000000";
+  signal dela11,     dela12 : std_logic_vector(9 downto 0) := "0000000000";
+  signal dela13             : std_logic_vector(9 downto 0) := "0000000000";
+  signal dela_sel           : std_logic_vector(9 downto 0);
 
   signal vector_ptr : std_logic_vector(3 downto 0) := "0000";
   signal salida_sw  : std_logic_vector(8 downto 0) := "100100100";
@@ -110,28 +103,28 @@ architecture behavioral of modulador is
   --
   -- signal al_o : STD_LOGIC_VECTOR (10 downto 0) := "00100011110";
   -- signal be_i : STD_LOGIC_VECTOR (10 downto 0) := "00000101101";
-  signal ki,          kv     : std_logic_vector(2 downto 0) := "000";
-  signal ki_sel,      kv_sel : std_logic_vector(1 downto 0) := "00";
-  signal kvi_sel             : std_logic_vector(3 downto 0);
-  signal ksum                : std_logic_vector(2 downto 0);
+  signal ki,         kv     : std_logic_vector(2 downto 0) := "000";
+  signal ki_sel,     kv_sel : std_logic_vector(1 downto 0) := "00";
+  signal kvi_sel            : std_logic_vector(3 downto 0);
+  signal ksum               : std_logic_vector(2 downto 0);
 
-  signal al_ot,       be_it : std_logic_vector(10 downto 0) := "00000000000";
+  signal al_ot,      be_it : std_logic_vector(10 downto 0) := "00000000000";
   -- signal phi_i : STD_LOGIC_VECTOR (10 downto 0) := "00000000000";
-  signal cos00                  : std_logic_vector(8 downto 0) := "000000000";
-  signal cos01                  : std_logic_vector(8 downto 0) := "000000000";
-  signal cos02                  : std_logic_vector(8 downto 0) := "000000000";
-  signal cos03                  : std_logic_vector(8 downto 0) := "000000000";
-  signal aux_div,     cos_phi   : std_logic_vector(8 downto 0) := "000000000";
-  signal q                      : std_logic_vector(8 downto 0) := "001000000";  -- q es positivo < 1 ==> q(8) = '0' ==> q(7) = 1
-  signal res_div                : std_logic_vector(9 downto 0) := "0000000000";
-  signal q0                     : std_logic_vector(9 downto 0) := "0000000000";
-  signal q1                     : std_logic_vector(9 downto 0) := "0000000000"; -- res_div(9) tiene el peso de 1 = 2^0
-  signal a                      : std_logic_vector(9 downto 0) := "0000000000";
-  signal d                      : std_logic_vector(9 downto 0) := "0000000000";
-  signal z                      : std_logic_vector(9 downto 0) := "0000000000";
-  signal a0,          a1        : std_logic_vector(9 downto 0) := "0000000000";
-  signal signo_phi,   lavel_div : std_logic;
-  signal amp_parcial            : std_logic_vector(17 downto 0);
+  signal cos00                 : std_logic_vector(8 downto 0) := "000000000";
+  signal cos01                 : std_logic_vector(8 downto 0) := "000000000";
+  signal cos02                 : std_logic_vector(8 downto 0) := "000000000";
+  signal cos03                 : std_logic_vector(8 downto 0) := "000000000";
+  signal aux_div,    cos_phi   : std_logic_vector(8 downto 0) := "000000000";
+  signal q                     : std_logic_vector(8 downto 0) := "001000000";  -- q es positivo < 1 ==> q(8) = '0' ==> q(7) = 1
+  signal res_div               : std_logic_vector(9 downto 0) := "0000000000";
+  signal q0                    : std_logic_vector(9 downto 0) := "0000000000";
+  signal q1                    : std_logic_vector(9 downto 0) := "0000000000"; -- res_div(9) tiene el peso de 1 = 2^0
+  signal a                     : std_logic_vector(9 downto 0) := "0000000000";
+  signal d                     : std_logic_vector(9 downto 0) := "0000000000";
+  signal z                     : std_logic_vector(9 downto 0) := "0000000000";
+  signal a0,         a1        : std_logic_vector(9 downto 0) := "0000000000";
+  signal signo_phi,  lavel_div : std_logic;
+  signal amp_parcial           : std_logic_vector(17 downto 0);
 
   component red_sector is
     port (
@@ -158,25 +151,22 @@ architecture behavioral of modulador is
 
 begin
 
-  DIRECCIONES(17 downto 9) <= "000000000";
-  DIRECCIONES(8 downto 0)  <= salida_sw;
+  o_direcciones(17 downto 9) <= "000000000";
+  o_direcciones(8 downto 0)  <= salida_sw;
   -- Se podria reemplazar con DIRECCIONES <= "000000000" & Salida_SW
-  datos <= "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ";
 
-  auxi00 <= ciclo_end;
-  auxi01 <= ciclo_ini;
-  auxi02 <= calculo_end;
-
-  datos <= "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ";
+  o_fin_ciclo    <= ciclo_end;
+  o_inicio_ciclo <= ciclo_ini;
+  o_fin_calc_ts  <= calculo_end;
 
   ------------------------------------------------------------------------------------
   --
   -- Control de maquina de estados de calculo de matriz de conmutacion.
   --
-  process (reloj) is
+  process (i_reloj) is
   begin
 
-    if (rising_edge(reloj)) then    -- Flanco de ascendente
+    if (rising_edge(i_reloj)) then    -- Flanco de ascendente
       estado <= estado + "00000000001";
     end if;
 
@@ -185,10 +175,10 @@ begin
   --
   -- Control de PWM.
   --
-  process (reloj) is
+  process (i_reloj) is
   begin
 
-    if (rising_edge(reloj)) then                           -- Flanco de ascendente
+    if (rising_edge(i_reloj)) then                            -- Flanco de ascendente
       if (calculo_end = '1') then
         vector_ptr   <= "0000";                               -- Reinicia ciclo Ts
         contador_pwm <= "0000000111";
@@ -320,16 +310,16 @@ begin
   --
   --    Prepara las diferencias de "al_ot" y "be_it" con PI/3 para calcular los cosenos.
   --
-  process (reloj) is
+  process (i_reloj) is
   begin
 
-    if (rising_edge(reloj)) then                       -- Flanco de descendente
+    if (rising_edge(i_reloj)) then                        -- Flanco de descendente
 
       case estado is
 
         when "00000000000" =>                             --
 
-          ram_dir <= phi_i;
+          ram_dir <= i_phi_i;
 
         when "00000000111" =>                             --
 
@@ -419,10 +409,10 @@ begin
   --
   --    Hace el producto de los cosenos.
   --
-  process (reloj) is
+  process (i_reloj) is
   begin
 
-    if (rising_edge(reloj)) then                                                                                              -- Flanco de descendente
+    if (rising_edge(i_reloj)) then                                                                                               -- Flanco de descendente
 
       case estado is
 
@@ -516,7 +506,7 @@ begin
   --
   -- Calculo del cociente Q/ASB(COS(PHI_I))
   --
-  q <= q_i;
+  q <= i_q_i;
 
   aux_div <= q - cos_phi;
 
@@ -536,10 +526,10 @@ begin
                  "00" & res_div & "000000" when n_norm = "110" else
                  "0" & res_div & "0000000" when n_norm = "111";
 
-  process (reloj) is
+  process (i_reloj) is
   begin
 
-    if (rising_edge(reloj)) then                     -- Flanco de descendente
+    if (rising_edge(i_reloj)) then                      -- Flanco de descendente
 
       case estado is
 
@@ -753,7 +743,7 @@ begin
   --
 
   --! Bloque de RAM que contienen funcion coseno, entrega valores enteros de 9 bits Rango: 255 (1 - BIN = "011111111") y -255 (-1 "100000001")
-  modu_2048x9 : component ramb16_s9 
+  modu_2048x9 : component ramb16_s9
     generic map (
       init       => X"000",
       srval      => X"000",
@@ -845,7 +835,7 @@ begin
       do   => ram_data(7 downto 0),
       dop  => ram_data(8 downto 8),
       addr => ram_dir,
-      clk  => reloj,
+      clk  => i_reloj,
       di   => "00000000",
       dip  => "0",
       en   => '1',
@@ -855,10 +845,10 @@ begin
 
   red_sector_inst00 : component red_sector
     port map (
-      al_o   => al_o,
-      be_i   => be_i,
+      al_o   => i_al_o,
+      be_i   => i_be_i,
       estado => estado,
-      clock  => reloj,
+      clock  => i_reloj,
       ki     => ki,
       kv     => kv,
       al_ot  => al_ot,
@@ -869,10 +859,10 @@ begin
   --    Calcula secuencia de vectores. signo_phi
   --      En estado = "00110" ya estan disponibles Kv y Ki
   --
-  process (reloj) is
+  process (i_reloj) is
   begin
 
-    if (rising_edge(reloj)) then                                                                                                -- Flanco de descendente
+    if (rising_edge(i_reloj)) then                                                                                                 -- Flanco de descendente
 
       case estado is
 
