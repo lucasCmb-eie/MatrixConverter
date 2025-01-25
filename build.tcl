@@ -116,6 +116,14 @@ set files [list \
  ]
  add_files -norecurse -fileset $obj $files
 
+# Set IP repository paths
+set obj [get_filesets sources_1]
+set_property "ip_repo_paths" "[file normalize "$origin_dir/HW/src/ip_repo/"]" $obj
+
+# Rebuild user ip_repo's index before adding any source files
+update_ip_catalog -rebuild
+
+
 # Set 'sources_1' fileset properties
 set obj [get_filesets sources_1]
 set_property -name "top" -value "modulador" -objects $obj
