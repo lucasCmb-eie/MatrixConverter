@@ -9,19 +9,23 @@ proc create_ipi_design { offsetfile design_name } {
 	set_property -dict [ list CONFIG.POLARITY {ACTIVE_LOW}  ] $ARESETN
 	set_property CONFIG.ASSOCIATED_RESET ARESETN $ACLK
 
-	# Create instance: Modulador_IP_0, and set properties
-	set Modulador_IP_0 [ create_bd_cell -type ip -vlnv xilinx.com:user:Modulador_IP:1.0 Modulador_IP_0]
+	# Create instance: AXI_Modulador_0, and set properties
+	set AXI_Modulador_0 [ create_bd_cell -type ip -vlnv xilinx.com:user:AXI_Modulador:1.0 AXI_Modulador_0]
+	make_bd_intf_pins_external  [get_bd_intf_pins AXI_Modulador_0/S_AXI_DIRECCS]
+	# Create port connections
+	connect_bd_net -net aclk_net [get_bd_ports ACLK] [get_bd_pins AXI_Modulador_0/S_AXI_DIRECCS_ACLK]
+	connect_bd_net -net aresetn_net [get_bd_ports ARESETN] [get_bd_pins AXI_Modulador_0/S_AXI_DIRECCS_ARESETN]
 
-	# Create instance: master_0, and set properties
-	set master_0 [ create_bd_cell -type ip -vlnv  xilinx.com:ip:axi_vip master_0]
-	set_property -dict [ list CONFIG.PROTOCOL {AXI4LITE} CONFIG.INTERFACE_MODE {MASTER} ] $master_0
+	# Create instance: master_1, and set properties
+	set master_1 [ create_bd_cell -type ip -vlnv  xilinx.com:ip:axi_vip master_1]
+	set_property -dict [ list CONFIG.PROTOCOL {AXI4LITE} CONFIG.INTERFACE_MODE {MASTER} ] $master_1
 
 	# Create interface connections
-	connect_bd_intf_net [get_bd_intf_pins master_0/M_AXI ] [get_bd_intf_pins Modulador_IP_0/S00_AXI]
+	connect_bd_intf_net [get_bd_intf_pins master_1/M_AXI ] [get_bd_intf_pins AXI_Modulador_0/S_AXI_PARAMS]
 
 	# Create port connections
-	connect_bd_net -net aclk_net [get_bd_ports ACLK] [get_bd_pins master_0/ACLK] [get_bd_pins Modulador_IP_0/S00_AXI_ACLK]
-	connect_bd_net -net aresetn_net [get_bd_ports ARESETN] [get_bd_pins master_0/ARESETN] [get_bd_pins Modulador_IP_0/S00_AXI_ARESETN]
+	connect_bd_net -net aclk_net [get_bd_ports ACLK] [get_bd_pins master_1/ACLK] [get_bd_pins AXI_Modulador_0/S_AXI_PARAMS_ACLK]
+	connect_bd_net -net aresetn_net [get_bd_ports ARESETN] [get_bd_pins master_1/ARESETN] [get_bd_pins AXI_Modulador_0/S_AXI_PARAMS_ARESETN]
 set_property target_simulator XSim [current_project]
 set_property -name {xsim.simulate.runtime} -value {100ms} -objects [get_filesets sim_1]
 
@@ -31,10 +35,10 @@ set_property -name {xsim.simulate.runtime} -value {100ms} -objects [get_filesets
 	# Copy all address to interface_address.vh file
 	set bd_path [file dirname [get_property NAME [get_files ${design_name}.bd]]]
 	upvar 1 $offsetfile offset_file
-	set offset_file "${bd_path}/Modulador_IP_v1_0_tb_include.svh"
+	set offset_file "${bd_path}/AXI_Modulador_v1_0_tb_include.svh"
 	set fp [open $offset_file "w"]
-	puts $fp "`ifndef Modulador_IP_v1_0_tb_include_vh_"
-	puts $fp "`define Modulador_IP_v1_0_tb_include_vh_\n"
+	puts $fp "`ifndef AXI_Modulador_v1_0_tb_include_vh_"
+	puts $fp "`define AXI_Modulador_v1_0_tb_include_vh_\n"
 	puts $fp "//Configuration current bd names"
 	puts $fp "`define BD_NAME ${design_name}"
 	puts $fp "`define BD_INST_NAME ${design_name}_i"
@@ -45,8 +49,8 @@ set_property -name {xsim.simulate.runtime} -value {100ms} -objects [get_filesets
 	close $fp
 }
 
-set ip_path [file dirname [file normalize [get_property XML_FILE_NAME [ipx::get_cores xilinx.com:user:Modulador_IP:1.0]]]]
-set test_bench_file ${ip_path}/example_designs/bfm_design/Modulador_IP_v1_0_tb.sv
+set ip_path [file dirname [file normalize [get_property XML_FILE_NAME [ipx::get_cores xilinx.com:user:AXI_Modulador:1.0]]]]
+set test_bench_file ${ip_path}/example_designs/bfm_design/AXI_Modulador_v1_0_tb.sv
 set interface_address_vh_file ""
 
 # Set IP Repository and Update IP Catalogue 
@@ -66,7 +70,7 @@ lappend all_bd $bd_name
 }
 
 for { set i 1 } { 1 } { incr i } {
-	set design_name "Modulador_IP_v1_0_bfm_${i}"
+	set design_name "AXI_Modulador_v1_0_bfm_${i}"
 	if { [lsearch -exact -nocase $all_bd $design_name ] == -1 } {
 		break
 	}
@@ -80,9 +84,9 @@ import_files -force -norecurse $wrapper_file
 
 set_property SOURCE_SET sources_1 [get_filesets sim_1]
 import_files -fileset sim_1 -norecurse -force $test_bench_file
-remove_files -quiet -fileset sim_1 Modulador_IP_v1_0_tb_include.vh
+remove_files -quiet -fileset sim_1 AXI_Modulador_v1_0_tb_include.vh
 import_files -fileset sim_1 -norecurse -force $interface_address_vh_file
-set_property top Modulador_IP_v1_0_tb [get_filesets sim_1]
+set_property top AXI_Modulador_v1_0_tb [get_filesets sim_1]
 set_property top_lib {} [get_filesets sim_1]
 set_property top_file {} [get_filesets sim_1]
 launch_simulation -simset sim_1 -mode behavioral

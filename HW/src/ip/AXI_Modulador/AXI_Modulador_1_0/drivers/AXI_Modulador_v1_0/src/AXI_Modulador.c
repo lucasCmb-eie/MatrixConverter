@@ -1,6 +1,6 @@
 
 
 /***************************** Include Files *******************************/
-#include "Modulador_IP.h"
+#include "AXI_Modulador.h"
 
 /************************** Function Definitions ***************************/

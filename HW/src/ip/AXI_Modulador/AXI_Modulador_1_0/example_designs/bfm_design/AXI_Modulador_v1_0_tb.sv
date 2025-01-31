@@ -1,11 +1,11 @@
 
 `timescale 1ns / 1ps
-`include "Modulador_IP_v1_0_tb_include.svh"
+`include "AXI_Modulador_v1_0_tb_include.svh"
 
 import axi_vip_pkg::*;
-import Modulador_IP_v1_0_bfm_1_master_0_0_pkg::*;
+import AXI_Modulador_v1_0_bfm_1_master_1_0_pkg::*;
 
-module Modulador_IP_v1_0_tb();
+module AXI_Modulador_v1_0_tb();
 
 
 xil_axi_uint                            error_cnt = 0;
@@ -104,7 +104,7 @@ axi_ready_gen                           awready_gen2;
 axi_ready_gen                           wready_gen2;  
 axi_ready_gen                           arready_gen2;  
 xil_axi_payload_byte                    data_mem[xil_axi_ulong];  
-Modulador_IP_v1_0_bfm_1_master_0_0_mst_t          mst_agent_0;
+AXI_Modulador_v1_0_bfm_1_master_1_0_mst_t          mst_agent_1;
 
   `BD_WRAPPER DUT(
       .ARESETN(reset), 
@@ -112,11 +112,11 @@ Modulador_IP_v1_0_bfm_1_master_0_0_mst_t          mst_agent_0;
     ); 
   
 initial begin
-     mst_agent_0 = new("master vip agent",DUT.`BD_INST_NAME.master_0.inst.IF);//ms  
-   mst_agent_0.vif_proxy.set_dummy_drive_type(XIL_AXI_VIF_DRIVE_NONE); 
-   mst_agent_0.set_agent_tag("Master VIP"); 
-   mst_agent_0.set_verbosity(mst_agent_verbosity); 
-   mst_agent_0.start_master(); 
+     mst_agent_1 = new("master vip agent",DUT.`BD_INST_NAME.master_1.inst.IF);//ms  
+   mst_agent_1.vif_proxy.set_dummy_drive_type(XIL_AXI_VIF_DRIVE_NONE); 
+   mst_agent_1.set_agent_tag("Master VIP"); 
+   mst_agent_1.set_verbosity(mst_agent_verbosity); 
+   mst_agent_1.start_master(); 
      $timeformat (-12, 1, " ps", 1);
   end
   initial begin
@@ -150,7 +150,7 @@ begin
   mtestWDataL[31:0] = 32'h00000001; 
   for(int i = 0; i < 4;i++) begin 
   S00_AXI_test_data[i] <= mtestWDataL[31:0];   
-  mst_agent_0.AXI4LITE_WRITE_BURST( 
+  mst_agent_1.AXI4LITE_WRITE_BURST( 
   mtestADDR, 
   mtestProtectionType, 
   mtestWDataL, 
@@ -172,7 +172,7 @@ begin
      mtestRegion = 0; 
      mtestQOS = 0; 
  for(int i = 0; i < 4;i++) begin 
-   mst_agent_0.AXI4LITE_READ_BURST( 
+   mst_agent_1.AXI4LITE_READ_BURST( 
         mtestADDR, 
         mtestProtectionType, 
         mtestRDataL, 
@@ -184,7 +184,7 @@ begin
      $display("Sequential read transfers example similar to  AXI BFM READ_BURST method completes"); 
      $display("Sequential read transfers example similar to  AXI VIP READ_BURST method completes"); 
      $display("---------------------------------------------------------"); 
-     $display("EXAMPLE TEST S00_AXI: PTGEN_TEST_FINISHED!"); 
+     $display("EXAMPLE TEST S_AXI_PARAMS: PTGEN_TEST_FINISHED!"); 
      if ( result_slave ) begin                    
        $display("PTGEN_TEST: PASSED!");                  
      end    else begin                                       
