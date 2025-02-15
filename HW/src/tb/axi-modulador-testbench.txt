@@ -1,0 +1,127 @@
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
+entity AXI_Modulador_tb is
+end AXI_Modulador_tb;
+
+architecture behavior of AXI_Modulador_tb is
+    -- Constants
+    constant C_M_AXIS_TDATA_WIDTH : integer := 32;
+    constant C_M_START_COUNT : integer := 32;
+    constant CLK_PERIOD : time := 10 ns;
+
+    -- Signals for DUT
+    signal M_DIRECTS : std_logic_vector(17 downto 0);
+    signal M_BEGIN_Ts : std_logic;
+    signal M_AXIS_ACLK : std_logic := '0';
+    signal M_AXIS_ARESETN : std_logic;
+    signal M_AXIS_TVALID : std_logic;
+    signal M_AXIS_TDATA : std_logic_vector(C_M_AXIS_TDATA_WIDTH-1 downto 0);
+    signal M_AXIS_TSTRB : std_logic_vector((C_M_AXIS_TDATA_WIDTH/8)-1 downto 0);
+    signal M_AXIS_TLAST : std_logic;
+    signal M_AXIS_TREADY : std_logic;
+
+    -- Transaction counter
+    signal transaction_count : integer := 0;
+
+begin
+    -- DUT instantiation
+    DUT: entity work.AXI_Modulador_v1_0_M_AXIS_DIRECTS
+        generic map (
+            C_M_AXIS_TDATA_WIDTH => C_M_AXIS_TDATA_WIDTH,
+            C_M_START_COUNT => C_M_START_COUNT
+        )
+        port map (
+            M_DIRECTS => M_DIRECTS,
+            M_BEGIN_Ts => M_BEGIN_Ts,
+            M_AXIS_ACLK => M_AXIS_ACLK,
+            M_AXIS_ARESETN => M_AXIS_ARESETN,
+            M_AXIS_TVALID => M_AXIS_TVALID,
+            M_AXIS_TDATA => M_AXIS_TDATA,
+            M_AXIS_TSTRB => M_AXIS_TSTRB,
+            M_AXIS_TLAST => M_AXIS_TLAST,
+            M_AXIS_TREADY => M_AXIS_TREADY
+        );
+
+    -- Clock generation
+    M_AXIS_ACLK <= not M_AXIS_ACLK after CLK_PERIOD/2;
+
+    -- Stimulus process
+    stimulus: process
+        -- Procedure to send a single data transfer
+        procedure send_data(data: in std_logic_vector(17 downto 0)) is
+        begin
+            -- Set up data
+            M_DIRECTS <= data;
+            -- Start transfer (falling edge of Ts)
+            M_BEGIN_Ts <= '1';
+            wait for CLK_PERIOD;
+            M_BEGIN_Ts <= '0';
+            
+            -- Wait for some cycles during transfer
+            wait for 5 * CLK_PERIOD;
+            
+            -- End transfer (rising edge of Ts)
+            M_BEGIN_Ts <= '1';
+            wait for CLK_PERIOD;
+        end procedure;
+
+    begin
+        -- Initialize signals
+        M_DIRECTS <= (others => '0');
+        M_BEGIN_Ts <= '1';
+        M_AXIS_ARESETN <= '0';
+        M_AXIS_TREADY <= '0';
+        
+        -- Reset sequence
+        wait for 100 ns;
+        M_AXIS_ARESETN <= '1';
+        wait for CLK_PERIOD * 2;
+        
+        -- Test Case 1: Single data transfer
+        report "Test Case 1: Single data transfer";
+        M_AXIS_TREADY <= '1';
+        send_data("101010101010101010");
+        wait for CLK_PERIOD * 2;
+        
+        -- Test Case 2: Multiple consecutive transfers
+        report "Test Case 2: Multiple consecutive transfers";
+        for i in 0 to 3 loop
+            send_data(std_logic_vector(to_unsigned(i, 18)));
+            wait for CLK_PERIOD * 2;
+        end loop;
+        
+        -- Test Case 3: Transfer with TREADY deasserted
+        report "Test Case 3: Transfer with TREADY toggling";
+        M_AXIS_TREADY <= '0';
+        send_data("111111111111111111");
+        wait for CLK_PERIOD * 2;
+        M_AXIS_TREADY <= '1';
+        wait for CLK_PERIOD * 2;
+        
+        -- Test Case 4: Back-to-back transfers
+        report "Test Case 4: Back-to-back transfers";
+        send_data("000000001111111111");
+        send_data("111111110000000000");
+        
+        -- End simulation
+        wait for 100 ns;
+        report "Simulation completed successfully";
+        wait;
+    end process;
+
+    -- Monitor process to check data transfers
+    monitor: process(M_AXIS_ACLK)
+    begin
+        if rising_edge(M_AXIS_ACLK) then
+            if M_AXIS_TVALID = '1' and M_AXIS_TREADY = '1' then
+                transaction_count <= transaction_count + 1;
+                report "Transaction " & integer'image(transaction_count) & 
+                       " Data: " & integer'image(to_integer(unsigned(M_AXIS_TDATA(17 downto 0)))) &
+                       " TLAST: " & std_logic'image(M_AXIS_TLAST);
+            end if;
+        end if;
+    end process;
+
+end behavior;
