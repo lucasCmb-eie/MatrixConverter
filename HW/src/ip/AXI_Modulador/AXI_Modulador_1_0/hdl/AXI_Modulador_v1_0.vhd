@@ -54,7 +54,6 @@ entity AXI_Modulador_v1_0 is
 		m_axis_directs_aresetn	: in std_logic;
 		m_axis_directs_tvalid	: out std_logic;
 		m_axis_directs_tdata	: out std_logic_vector(C_M_AXIS_DIRECTS_TDATA_WIDTH-1 downto 0);
-		m_axis_directs_tstrb	: out std_logic_vector((C_M_AXIS_DIRECTS_TDATA_WIDTH/8)-1 downto 0);
 		m_axis_directs_tlast	: out std_logic;
 		m_axis_directs_tready	: in std_logic
 	);
@@ -107,11 +106,12 @@ architecture arch_imp of AXI_Modulador_v1_0 is
 		);
 		port 
 		(
+			M_DIRECTS : in std_logic_vector(17 downto 0);
+        	M_BEGIN_Ts : in std_logic;
 			M_AXIS_ACLK	: in std_logic;
 			M_AXIS_ARESETN	: in std_logic;
 			M_AXIS_TVALID	: out std_logic;
 			M_AXIS_TDATA	: out std_logic_vector(C_M_AXIS_TDATA_WIDTH-1 downto 0);
-			M_AXIS_TSTRB	: out std_logic_vector((C_M_AXIS_TDATA_WIDTH/8)-1 downto 0);
 			M_AXIS_TLAST	: out std_logic;
 			M_AXIS_TREADY	: in std_logic
 		);
@@ -189,11 +189,12 @@ begin
 		)
 		port map 
 		(
+			M_DIRECTS => w_dirrecs,
+			M_BEGIN_Ts => w_fin_calc_ts,
 			M_AXIS_ACLK	=> m_axis_directs_aclk,
 			M_AXIS_ARESETN	=> m_axis_directs_aresetn,
 			M_AXIS_TVALID	=> m_axis_directs_tvalid,
 			M_AXIS_TDATA	=> m_axis_directs_tdata,
-			M_AXIS_TSTRB	=> m_axis_directs_tstrb,
 			M_AXIS_TLAST	=> m_axis_directs_tlast,
 			M_AXIS_TREADY	=> m_axis_directs_tready
 		);
