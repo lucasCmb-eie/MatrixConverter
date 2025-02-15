@@ -7,7 +7,7 @@
 <Project Product="Vivado" Version="7" Minor="65" Path="f:/proyecto_final/repo/finalproject_ing/hw/src/ip/axi_modulador/edit_AXI_Modulador_v1_0.xpr">
   <DefaultLaunch Dir="$PRUNDIR"/>
   <Configuration>
-    <Option Name="Id" Val="6ac95265c5f94d2ab7d2076e5eaf606b"/>
+    <Option Name="Id" Val="8fd760cb5a17408599008c756383e000"/>
     <Option Name="Part" Val="xc7z007sclg400-1"/>
     <Option Name="CompiledLibDir" Val="$PCACHEDIR/compile_simlib"/>
     <Option Name="CompiledLibDirXSim" Val=""/>
@@ -48,6 +48,8 @@
     <Option Name="ActiveSimSet" Val="sim_1"/>
     <Option Name="DefaultLib" Val="xil_defaultlib"/>
     <Option Name="ProjectType" Val="Default"/>
+    <Option Name="IPRepoPath" Val="$PPRDIR/../../../../../../../Proyecto_Final/repo/FinalProject_Ing/HW/src/ip/AXI_Modulador/AXI_Modulador_1_0"/>
+    <Option Name="IPRepoPath" Val="$PPRDIR/../../../../../../../Proyecto_Final/repo/FinalProject_Ing/ip_repo/AXI_Modulador_1_0"/>
     <Option Name="IPRepoPath" Val="$PPRDIR/../../../../../../../Proyecto_Final/repo/FinalProject_Ing/HW/src/ip/AXI_Modulador/AXI_Modulador_1_0"/>
     <Option Name="IPRepoPath" Val="$PPRDIR/../../../../../../../Proyecto_Final/repo/FinalProject_Ing/ip/AXI_Modulador/AXI_Modulador_1_0"/>
     <Option Name="IPRepoPath" Val="$PPRDIR/../../../../../../../Proyecto_Final/repo/FinalProject_Ing/ip/AXI_Modulador/AXI_Modulador_1_0"/>
@@ -98,7 +100,7 @@
   <FileSets Version="1" Minor="32">
     <FileSet Name="sources_1" Type="DesignSrcs" RelSrcDir="$PSRCDIR/sources_1" RelGenDir="$PGENDIR/sources_1">
       <Filter Type="Srcs"/>
-      <File Path="$PPRDIR/../../../../../../../Proyecto_Final/repo/FinalProject_Ing/HW/src/ip/AXI_Modulador/AXI_Modulador_1_0/hdl/AXI_Modulador_v1_0_S_AXI_DIRECCS.vhd">
+      <File Path="$PPRDIR/../../../../../../../Proyecto_Final/repo/FinalProject_Ing/HW/src/ip/AXI_Modulador/AXI_Modulador_1_0/hdl/AXI_Modulador_v1_0_M_AXIS_DIRECTS.vhd">
         <FileInfo>
           <Attr Name="Library" Val="xil_defaultlib"/>
           <Attr Name="UsedIn" Val="synthesis"/>
@@ -112,6 +114,18 @@
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
       </File>
+      <File Path="$PPRDIR/../../../../../../../Proyecto_Final/repo/FinalProject_Ing/HW/src/hdl/Modulador.vhd">
+        <FileInfo>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
+      <File Path="$PPRDIR/../../../../../../../Proyecto_Final/repo/FinalProject_Ing/HW/src/hdl/red_sector.vhd">
+        <FileInfo>
+          <Attr Name="UsedIn" Val="synthesis"/>
+          <Attr Name="UsedIn" Val="simulation"/>
+        </FileInfo>
+      </File>
       <File Path="$PPRDIR/../../../../../../../Proyecto_Final/repo/FinalProject_Ing/HW/src/ip/AXI_Modulador/AXI_Modulador_1_0/hdl/AXI_Modulador_v1_0.vhd">
         <FileInfo>
           <Attr Name="Library" Val="xil_defaultlib"/>
@@ -121,20 +135,6 @@
       </File>
       <File Path="$PPRDIR/../../../../../../../Proyecto_Final/repo/FinalProject_Ing/HW/src/ip/AXI_Modulador/AXI_Modulador_1_0/component.xml">
         <FileInfo SFType="IPXACT"/>
-      </File>
-      <File Path="$PPRDIR/../../../../../../../Proyecto_Final/repo/FinalProject_Ing/HW/src/hdl/Modulador.vhd">
-        <FileInfo>
-          <Attr Name="AutoDisabled" Val="1"/>
-          <Attr Name="UsedIn" Val="synthesis"/>
-          <Attr Name="UsedIn" Val="simulation"/>
-        </FileInfo>
-      </File>
-      <File Path="$PPRDIR/../../../../../../../Proyecto_Final/repo/FinalProject_Ing/HW/src/hdl/red_sector.vhd">
-        <FileInfo>
-          <Attr Name="AutoDisabled" Val="1"/>
-          <Attr Name="UsedIn" Val="synthesis"/>
-          <Attr Name="UsedIn" Val="simulation"/>
-        </FileInfo>
       </File>
       <Config>
         <Option Name="DesignMode" Val="RTL"/>

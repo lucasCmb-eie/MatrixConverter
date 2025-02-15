@@ -4,11 +4,6 @@ use ieee.numeric_std.all;
 
 entity AXI_Modulador_v1_0_S_AXI_PARAMS is
 	generic (
-		-- Users to add parameters here
-
-		-- User parameters ends
-		-- Do not modify the parameters beyond this line
-
 		-- Width of S_AXI data bus
 		C_S_AXI_DATA_WIDTH	: integer	:= 32;
 		-- Width of S_AXI address bus
@@ -16,7 +11,10 @@ entity AXI_Modulador_v1_0_S_AXI_PARAMS is
 	);
 	port (
 		-- Users to add ports here
-
+		S_ALPHA_O	: out    std_logic_vector(10 downto 0);
+		S_BETA_I	: out    std_logic_vector(10 downto 0);
+		S_Q_I		: out    std_logic_vector(8 downto 0) ;
+		S_PHI_I		: out    std_logic_vector(10 downto 0); 
 		-- User ports ends
 		-- Do not modify the ports beyond this line
 
@@ -275,8 +273,8 @@ begin
 	              end if;
 	            end loop;
 	          when others =>
-	            slv_reg0 <= slv_reg0;
-	            slv_reg1 <= slv_reg1;
+			  	slv_reg0 <= slv_reg0;
+			  	slv_reg1 <= slv_reg1;
 	            slv_reg2 <= slv_reg2;
 	            slv_reg3 <= slv_reg3;
 	            slv_reg4 <= slv_reg4;
@@ -411,7 +409,10 @@ begin
 
 
 	-- Add user logic here
-
+	S_ALPHA_I 	<= slv_reg0(10 downto 0);
+	S_BETA_I 	<= slv_reg1(10 downto 0);
+	S_Q_I 		<= slv_reg1(8 downto 0);
+	S_PHI_I 	<= slv_reg2(10 downto 0);
 	-- User logic ends
 
 end arch_imp;

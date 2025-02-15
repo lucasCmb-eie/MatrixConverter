@@ -11,21 +11,21 @@ proc create_ipi_design { offsetfile design_name } {
 
 	# Create instance: AXI_Modulador_0, and set properties
 	set AXI_Modulador_0 [ create_bd_cell -type ip -vlnv xilinx.com:user:AXI_Modulador:1.0 AXI_Modulador_0]
-	make_bd_intf_pins_external  [get_bd_intf_pins AXI_Modulador_0/S_AXI_DIRECCS]
-	# Create port connections
-	connect_bd_net -net aclk_net [get_bd_ports ACLK] [get_bd_pins AXI_Modulador_0/S_AXI_DIRECCS_ACLK]
-	connect_bd_net -net aresetn_net [get_bd_ports ARESETN] [get_bd_pins AXI_Modulador_0/S_AXI_DIRECCS_ARESETN]
 
-	# Create instance: master_1, and set properties
-	set master_1 [ create_bd_cell -type ip -vlnv  xilinx.com:ip:axi_vip master_1]
-	set_property -dict [ list CONFIG.PROTOCOL {AXI4LITE} CONFIG.INTERFACE_MODE {MASTER} ] $master_1
+	# Create instance: master_0, and set properties
+	set master_0 [ create_bd_cell -type ip -vlnv  xilinx.com:ip:axi_vip master_0]
+	set_property -dict [ list CONFIG.PROTOCOL {AXI4LITE} CONFIG.INTERFACE_MODE {MASTER} ] $master_0
 
 	# Create interface connections
-	connect_bd_intf_net [get_bd_intf_pins master_1/M_AXI ] [get_bd_intf_pins AXI_Modulador_0/S_AXI_PARAMS]
+	connect_bd_intf_net [get_bd_intf_pins master_0/M_AXI ] [get_bd_intf_pins AXI_Modulador_0/S_AXI_PARAMS]
 
 	# Create port connections
-	connect_bd_net -net aclk_net [get_bd_ports ACLK] [get_bd_pins master_1/ACLK] [get_bd_pins AXI_Modulador_0/S_AXI_PARAMS_ACLK]
-	connect_bd_net -net aresetn_net [get_bd_ports ARESETN] [get_bd_pins master_1/ARESETN] [get_bd_pins AXI_Modulador_0/S_AXI_PARAMS_ARESETN]
+	connect_bd_net -net aclk_net [get_bd_ports ACLK] [get_bd_pins master_0/ACLK] [get_bd_pins AXI_Modulador_0/S_AXI_PARAMS_ACLK]
+	connect_bd_net -net aresetn_net [get_bd_ports ARESETN] [get_bd_pins master_0/ARESETN] [get_bd_pins AXI_Modulador_0/S_AXI_PARAMS_ARESETN]
+	make_bd_intf_pins_external  [get_bd_intf_pins AXI_Modulador_0/M_AXIS_DIRECTS]
+	# Create port connections
+	connect_bd_net -net aclk_net [get_bd_ports ACLK] [get_bd_pins AXI_Modulador_0/M_AXIS_DIRECTS_ACLK]
+	connect_bd_net -net aresetn_net [get_bd_ports ARESETN] [get_bd_pins AXI_Modulador_0/M_AXIS_DIRECTS_ARESETN]
 set_property target_simulator XSim [current_project]
 set_property -name {xsim.simulate.runtime} -value {100ms} -objects [get_filesets sim_1]
 
