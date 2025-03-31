@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wave_config>
+   <wave_state>
+   </wave_state>
+   <db_ref_list>
+      <db_ref path="tb_modulador_behav.wdb" id="1">
+         <top_modules>
+            <top_module name="tb_modulador" />
+         </top_modules>
+      </db_ref>
+   </db_ref_list>
+   <zoom_setting>
+      <ZoomStartTime time="0.000000 us"></ZoomStartTime>
+      <ZoomEndTime time="100.000001 us"></ZoomEndTime>
+      <Cursor1Time time="10.197500 us"></Cursor1Time>
+   </zoom_setting>
+   <column_width_setting>
+      <NameColumnWidth column_width="276"></NameColumnWidth>
+      <ValueColumnWidth column_width="120"></ValueColumnWidth>
+   </column_width_setting>
+   <WVObjectSize size="13" />
+   <wvobject fp_name="/tb_modulador/auxi00" type="logic">
+      <obj_property name="ElementShortName">auxi00</obj_property>
+      <obj_property name="ObjectShortName">auxi00</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_modulador/auxi01" type="logic">
+      <obj_property name="ElementShortName">auxi01</obj_property>
+      <obj_property name="ObjectShortName">auxi01</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_modulador/auxi02" type="logic">
+      <obj_property name="ElementShortName">auxi02</obj_property>
+      <obj_property name="ObjectShortName">auxi02</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_modulador/direcciones" type="array">
+      <obj_property name="ElementShortName">direcciones[17:0]</obj_property>
+      <obj_property name="ObjectShortName">direcciones[17:0]</obj_property>
+      <obj_property name="isExpanded"></obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_modulador/tbclock" type="logic">
+      <obj_property name="ElementShortName">tbclock</obj_property>
+      <obj_property name="ObjectShortName">tbclock</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_modulador/tbsimended" type="logic">
+      <obj_property name="ElementShortName">tbsimended</obj_property>
+      <obj_property name="ObjectShortName">tbsimended</obj_property>
+   </wvobject>
+   <wvobject fp_name="group87" type="group">
+      <obj_property name="label">Times</obj_property>
+      <obj_property name="DisplayName">label</obj_property>
+      <wvobject fp_name="/tb_modulador/t1" type="other">
+         <obj_property name="ElementShortName">t1</obj_property>
+         <obj_property name="ObjectShortName">t1</obj_property>
+      </wvobject>
+      <wvobject fp_name="/tb_modulador/t2" type="other">
+         <obj_property name="ElementShortName">t2</obj_property>
+         <obj_property name="ObjectShortName">t2</obj_property>
+      </wvobject>
+      <wvobject fp_name="/tb_modulador/t3" type="other">
+         <obj_property name="ElementShortName">t3</obj_property>
+         <obj_property name="ObjectShortName">t3</obj_property>
+      </wvobject>
+      <wvobject fp_name="/tb_modulador/t4" type="other">
+         <obj_property name="ElementShortName">t4</obj_property>
+         <obj_property name="ObjectShortName">t4</obj_property>
+      </wvobject>
+      <wvobject fp_name="/tb_modulador/t5" type="other">
+         <obj_property name="ElementShortName">t5</obj_property>
+         <obj_property name="ObjectShortName">t5</obj_property>
+      </wvobject>
+      <wvobject fp_name="/tb_modulador/t6" type="other">
+         <obj_property name="ElementShortName">t6</obj_property>
+         <obj_property name="ObjectShortName">t6</obj_property>
+      </wvobject>
+      <wvobject fp_name="/tb_modulador/t7" type="other">
+         <obj_property name="ElementShortName">t7</obj_property>
+         <obj_property name="ObjectShortName">t7</obj_property>
+      </wvobject>
+      <wvobject fp_name="/tb_modulador/t8" type="other">
+         <obj_property name="ElementShortName">t8</obj_property>
+         <obj_property name="ObjectShortName">t8</obj_property>
+      </wvobject>
+      <wvobject fp_name="/tb_modulador/t9" type="other">
+         <obj_property name="ElementShortName">t9</obj_property>
+         <obj_property name="ObjectShortName">t9</obj_property>
+      </wvobject>
+      <wvobject fp_name="/tb_modulador/t10" type="other">
+         <obj_property name="ElementShortName">t10</obj_property>
+         <obj_property name="ObjectShortName">t10</obj_property>
+      </wvobject>
+      <wvobject fp_name="/tb_modulador/t11" type="other">
+         <obj_property name="ElementShortName">t11</obj_property>
+         <obj_property name="ObjectShortName">t11</obj_property>
+      </wvobject>
+      <wvobject fp_name="/tb_modulador/t12" type="other">
+         <obj_property name="ElementShortName">t12</obj_property>
+         <obj_property name="ObjectShortName">t12</obj_property>
+      </wvobject>
+      <wvobject fp_name="/tb_modulador/t13" type="other">
+         <obj_property name="ElementShortName">t13</obj_property>
+         <obj_property name="ObjectShortName">t13</obj_property>
+      </wvobject>
+   </wvobject>
+   <wvobject fp_name="/tb_modulador/al_o" type="array">
+      <obj_property name="ElementShortName">al_o[10:0]</obj_property>
+      <obj_property name="ObjectShortName">al_o[10:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_modulador/be_i" type="array">
+      <obj_property name="ElementShortName">be_i[10:0]</obj_property>
+      <obj_property name="ObjectShortName">be_i[10:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_modulador/q_i" type="array">
+      <obj_property name="ElementShortName">q_i[8:0]</obj_property>
+      <obj_property name="ObjectShortName">q_i[8:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_modulador/phi_i" type="array">
+      <obj_property name="ElementShortName">phi_i[10:0]</obj_property>
+      <obj_property name="ObjectShortName">phi_i[10:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_modulador/enable" type="logic">
+      <obj_property name="ElementShortName">enable</obj_property>
+      <obj_property name="ObjectShortName">enable</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_modulador/tbperiod" type="other">
+      <obj_property name="ElementShortName">tbperiod</obj_property>
+      <obj_property name="ObjectShortName">tbperiod</obj_property>
+   </wvobject>
+</wave_config>

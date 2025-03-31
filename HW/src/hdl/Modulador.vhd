@@ -23,15 +23,16 @@ library unisim;
 
 entity modulador is
   port (
-    i_reloj     : in    std_logic;                     --! Entrada de 200 MHz
-    i_al_o      : in    std_logic_vector(10 downto 0); --! Angulo alpha de la corriente de salida
-    i_be_i      : in    std_logic_vector(10 downto 0); --! Angulo beta de la tension de entrada
-    i_q_i       : in    std_logic_vector(8 downto 0);  --! Voltage Transfer Ratio
-    i_phi_i     : in    std_logic_vector(10 downto 0); --! Desfasaje entre corriente de salida y tension de entrada a la matriz
+    i_reloj  : in    std_logic;                     --! Entrada de 200 MHz
+    i_enable : in    std_logic;
+    i_al_o   : in    std_logic_vector(10 downto 0); --! Angulo alpha de la corriente de salida
+    i_be_i   : in    std_logic_vector(10 downto 0); --! Angulo beta de la tension de entrada
+    i_q_i    : in    std_logic_vector(8 downto 0);  --! Voltage Transfer Ratio
+    i_phi_i  : in    std_logic_vector(10 downto 0); --! Desfasaje entre corriente de salida y tension de entrada a la matriz
 
-    o_fin_ciclo    : out   std_logic;                     --! Indica Fin de Ciclo
-    o_inicio_ciclo : out   std_logic;                     --! Indica Inicio de Ciclo
-    o_fin_calc_ts  : out   std_logic;                     --! Indica que el calculo de las salidas finalizo (Ts)
+    o_fin_ciclo    : out   std_logic;                    --! Indica Fin de Ciclo
+    o_inicio_ciclo : out   std_logic;                    --! Indica Inicio de Ciclo
+    o_fin_calc_ts  : out   std_logic;                    --! Indica que el calculo de las salidas finalizo (Ts)
     o_direcciones  : out   std_logic_vector(17 downto 0) --! Salida con las señales de las conmutaciones
   );
 end entity modulador;
@@ -163,10 +164,11 @@ begin
   --
   -- Control de maquina de estados de calculo de matriz de conmutacion.
   --
-  process (i_reloj) is
+  process (i_reloj, i_enable) is
   begin
-
-    if (rising_edge(i_reloj)) then    -- Flanco de ascendente
+    if(i_enable = '0') then
+      estado <= "11111110000";
+    elsif (rising_edge(i_reloj)) then    -- Flanco de ascendente
       estado <= estado + "00000000001";
     end if;
 
@@ -177,7 +179,7 @@ begin
   --
   process (i_reloj) is
   begin
-
+    
     if (rising_edge(i_reloj)) then                            -- Flanco de ascendente
       if (calculo_end = '1') then
         vector_ptr   <= "0000";                               -- Reinicia ciclo Ts
@@ -506,9 +508,9 @@ begin
   --
   -- Calculo del cociente Q/ASB(COS(PHI_I))
   --
-  q <= i_q_i;
+  -- q <= i_q_i;
 
-  aux_div <= q - cos_phi;
+  aux_div <= i_q_i - cos_phi;
 
   z <= a(8 downto 0) & '0' - d;
 
@@ -524,7 +526,8 @@ begin
                  "0000" & res_div & "0000" when n_norm = "100" else
                  "000" & res_div & "00000" when n_norm = "101" else
                  "00" & res_div & "000000" when n_norm = "110" else
-                 "0" & res_div & "0000000" when n_norm = "111";
+                 "0" & res_div & "0000000" when n_norm = "111" else
+                 "000000000000000000";
 
   process (i_reloj) is
   begin
