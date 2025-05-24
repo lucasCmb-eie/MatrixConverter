@@ -11,10 +11,11 @@ entity AXI_Modulador_v1_0_S_AXI_PARAMS is
 	);
 	port (
 		-- Users to add ports here
-		S_ALPHA_O	: out    std_logic_vector(10 downto 0);
-		S_BETA_I	: out    std_logic_vector(10 downto 0);
-		S_Q_I		: out    std_logic_vector(8 downto 0) ;
-		S_PHI_I		: out    std_logic_vector(10 downto 0); 
+		S_ENABLE_MOD	: out std_logic;
+		S_ALPHA_O		: out    std_logic_vector(10 downto 0);
+		S_BETA_I		: out    std_logic_vector(10 downto 0);
+		S_Q_I			: out    std_logic_vector(8 downto 0) ;
+		S_PHI_I			: out    std_logic_vector(10 downto 0); 
 		-- User ports ends
 		-- Do not modify the ports beyond this line
 
@@ -409,10 +410,11 @@ begin
 
 
 	-- Add user logic here
-	S_ALPHA_I 	<= slv_reg0(10 downto 0);
+	S_ALPHA_O 	<= slv_reg0(10 downto 0);
 	S_BETA_I 	<= slv_reg1(10 downto 0);
 	S_Q_I 		<= slv_reg1(8 downto 0);
 	S_PHI_I 	<= slv_reg2(10 downto 0);
+	S_ENABLE_MOD <= slv_reg3(0);
 	-- User logic ends
 
 end arch_imp;

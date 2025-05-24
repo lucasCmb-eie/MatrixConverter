@@ -1,0 +1,7 @@
+# compile vhdl design source files
+vhdl xil_defaultlib  \
+"../../../../AXI_Modulador_1_0/hdl/AXI_Modulador_v1_0_M_AXIS_DIRECTS.vhd" \
+"../../../../../../tb/axi-modulador-testbench.vhd" \
+
+# Do not sort compile order
+nosort

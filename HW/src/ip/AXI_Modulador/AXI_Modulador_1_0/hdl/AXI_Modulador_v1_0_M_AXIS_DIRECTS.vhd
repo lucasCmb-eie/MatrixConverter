@@ -26,6 +26,7 @@ architecture implementation of AXI_Modulador_v1_0_M_AXIS_DIRECTS is
     signal axis_tvalid_delay : std_logic;
     signal ts_prev        : std_logic;  -- To detect edges
     signal transfer_active : std_logic;  -- Active during transfer period
+    signal transfer_done  : std_logic;  -- Added to track successful transfers
 begin
     -- Direct data assignment
     M_AXIS_TDATA(17 downto 0) <= M_DIRECTS;
@@ -40,27 +41,36 @@ begin
                 axis_tvalid_delay <= '0';
                 ts_prev <= '0';
                 transfer_active <= '0';
+                transfer_done <= '0';
             else
-                ts_prev <= Ts;
+                ts_prev <= M_BEGIN_Ts;
                 
-                -- Detect falling edge (start transfer)
-                if Ts = '0' and ts_prev = '1' then
+                 -- Detect falling edge (start transfer)
+                if M_BEGIN_Ts = '0' and ts_prev = '1' then
                     transfer_active <= '1';
-                -- Detect rising edge (end transfer)
-                elsif Ts = '1' and ts_prev = '0' then
+                    transfer_done <= '0';
+                -- Detect rising edge or successful transfer (end transfer)
+                elsif (M_BEGIN_Ts = '1' and ts_prev = '0') or transfer_done = '1' then
                     transfer_active <= '0';
                 end if;
                 
-                -- Control TVALID
-                axis_tvalid <= transfer_active;
+                -- Control TVALID and track successful transfers
+                if transfer_active = '1' then
+                    axis_tvalid <= '1';
+                    -- If receiver is ready, mark transfer as done
+                    if M_AXIS_TREADY = '1' then
+                        transfer_done <= '1';
+                    end if;
+                else
+                    axis_tvalid <= '0';
+                end if;
                 axis_tvalid_delay <= axis_tvalid;
             end if;
         end if;
     end process;
 
     M_AXIS_TVALID <= axis_tvalid_delay;
-    
     -- TLAST is asserted when we detect rising edge of Ts (end of transfer)
-    M_AXIS_TLAST <= '1' when (Ts = '1' and ts_prev = '0') else '0';
+    M_AXIS_TLAST <= '1' when ((M_BEGIN_Ts = '1' and ts_prev = '0') or transfer_done = '1') else '0';
 
 end implementation;
