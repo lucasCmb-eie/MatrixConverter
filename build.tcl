@@ -45,15 +45,15 @@ set files [list \
   [file normalize "${origin_dir}/HW/src/hdl/red_sector.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/Modulador.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/Declaraciones.vhd"] \
-  [file normalize "${origin_dir}/HW/src/hdl/matrix_model.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/SENO_LT.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/AC_Source.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/matrixConmut_model.vhd"] \
  ]
  add_files -norecurse -fileset $obj $files
 
 # Set IP repository paths
 set obj [get_filesets sources_1]
-set_property "ip_repo_paths" "[file normalize "$origin_dir/HW/src/ip_repo/"]" $obj
+set_property "ip_repo_paths" "[file normalize "$origin_dir/HW/src/ip/"]" $obj
 
 # Rebuild user ip_repo's index before adding any source files
 update_ip_catalog -rebuild
