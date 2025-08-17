@@ -2484,7 +2484,7 @@
 				)
 			)
 		)
-		(property "Value" "3.9nF"
+		(property "Value" "1.5nF"
 			(at 104.14 95.25 90)
 			(effects
 				(font
@@ -3831,7 +3831,7 @@
 				)
 			)
 		)
-		(property "Value" "10k"
+		(property "Value" "20k"
 			(at 87.63 106.68 90)
 			(effects
 				(font
@@ -3967,7 +3967,7 @@
 				)
 			)
 		)
-		(property "Value" "3.92k"
+		(property "Value" "10k"
 			(at 104.14 82.55 90)
 			(effects
 				(font
