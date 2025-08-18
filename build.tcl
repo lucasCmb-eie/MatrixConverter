@@ -47,7 +47,7 @@ set files [list \
   [file normalize "${origin_dir}/HW/src/hdl/Declaraciones.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/SENO_LT.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/AC_Source.vhd"] \
-  [file normalize "${origin_dir}/HW/src/hdl/matrixConmut_model.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/matrixConmut.vhd"] \
  ]
  add_files -norecurse -fileset $obj $files
 
@@ -81,12 +81,13 @@ set obj [get_filesets sim_1]
 set files [list \
  [file normalize "${origin_dir}/HW/src/tb/Tb_Modulador_1.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/ncoLUT_tb.vhd"] \
+ [file normalize "${origin_dir}/HW/src/tb/matrixConmut_tb.vhd"] \
 ]
 add_files -norecurse -fileset $obj $files
 
 # Set 'sim_1' fileset properties
 set obj [get_filesets sim_1]
-set_property -name "top" -value "tb_modulador" -objects $obj
+set_property -name "top" -value "ncoLUT_tb" -objects $obj
 set_property -name "top_lib" -value "xil_defaultlib" -objects $obj
 
 # Create 'synth_1' run (if not found)
