@@ -45,9 +45,11 @@ set files [list \
   [file normalize "${origin_dir}/HW/src/hdl/red_sector.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/Modulador.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/Declaraciones.vhd"] \
-  [file normalize "${origin_dir}/HW/src/hdl/SENO_LT.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/AC_Source.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/matrixConmut.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/RL.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/sine_generator.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/sine_lut_pkg.vhd"] \
  ]
  add_files -norecurse -fileset $obj $files
 
@@ -82,6 +84,7 @@ set files [list \
  [file normalize "${origin_dir}/HW/src/tb/Tb_Modulador_1.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/ncoLUT_tb.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/matrixConmut_tb.vhd"] \
+ [file normalize "${origin_dir}/HW/src/tb/sine_lut_tb.vhd"] \
 ]
 add_files -norecurse -fileset $obj $files
 

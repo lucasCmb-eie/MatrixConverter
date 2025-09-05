@@ -1,78 +1,83 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.numeric_std.all;
+
 use work.declaraciones.all;
+use work.sine_lut_pkg.all;
 
 entity AC_Source is
 port (
     i_clk : in  std_logic; -- Entrada de Clock
     i_rst : in  std_logic; -- Reset
-    i_fcw  : in  std_logic_vector(3 downto 0); --Determina el paso del NCO
-    o_triV : out vector(1 to 3)(8 downto 0) -- Salida de tensiones trifasicas
+
+    o_triV : out vector(1 to 3)(SINE_DATA_WIDTH - 1 downto 0) -- Salida de tensiones trifasicas (U, V ,W)
 );
 end AC_Source;
 
 architecture Behavioral of AC_Source is
-    
-    signal nco_a_cnt : unsigned(10 downto 0);
-    signal nco_b_cnt : unsigned(10 downto 0);
-    signal nco_c_cnt : unsigned(10 downto 0);
 
-    component Seno_LT is
-        port ( 
-	        Address : in  std_logic_vector (10 downto 0);
-	        Data : out  std_logic_vector (8 downto 0)
+    -- Constantes para las fases
+    constant PHASE_0   : integer := 0;
+    constant PHASE_120 : integer := 5592405;
+    constant PHASE_240 : integer := 11184811;
+
+    --Declaración de componenete padre
+    component sine_generator is
+        generic (
+            PHASE_INITIAL : integer := 0
         );
-    end component Seno_LT;
+        port (
+            clk      : in  std_logic;
+            reset    : in  std_logic;
+            sine_out : out signed(SINE_DATA_WIDTH - 1 downto 0)
+        );
+    end component;
+
+    signal w_lineaU : SIGNED(SINE_DATA_WIDTH - 1 downto 0);
+    signal w_lineaV : SIGNED(SINE_DATA_WIDTH - 1 downto 0);
+    signal w_lineaW : SIGNED(SINE_DATA_WIDTH - 1 downto 0);
+    
 
 begin
 
-    nco_a: process(i_clk,i_rst)
-        begin
-            if(i_rst) then
-                nco_a_cnt <= (others=>'0');
-            elsif(rising_edge(i_clk)) then
-                nco_a_cnt <= nco_a_cnt + unsigned(i_fcw);
-            end if;
+    --Declaracion de cada una de las tensiones de linea
 
-    end process nco_a;
+    Linea_U: sine_generator
+        generic map (
+            PHASE_INITIAL => PHASE_0
+        )
+        port map (
+            clk   => i_clk,
+            reset => i_rst,
+            
+            sine_out => w_lineaU
+        );
 
-    nco_b: process(i_clk,i_rst)   
-        begin
-            if(i_rst) then
-                nco_b_cnt <= to_unsigned(682, 11);
-            elsif(rising_edge(i_clk)) then
-                nco_b_cnt <= nco_b_cnt + unsigned(i_fcw);
-            end if;
+    Linea_V: sine_generator
+        generic map (
+            PHASE_INITIAL => PHASE_120
+        )
+        port map (
+            clk   => i_clk,
+            reset => i_rst,
+            
+            sine_out => w_lineaV
+        );
 
-    end process nco_b;
+    Linea_W: sine_generator
+        generic map (
+            PHASE_INITIAL => PHASE_240
+        )
+        port map (
+            clk   => i_clk,
+            reset => i_rst,
+            
+            sine_out => w_lineaW
+        );
 
-    nco_c: process(i_clk,i_rst)
-        begin
-            if(i_rst) then
-                nco_c_cnt <= to_unsigned(1365, 11);
-            elsif(rising_edge(i_clk)) then
-                nco_c_cnt <= nco_c_cnt + unsigned(i_fcw);
-            end if;
-
-    end process nco_c;
-
-    seno_lt_a_inst: Seno_LT
-     port map(
-        Address => std_logic_vector(nco_a_cnt),
-        Data => o_triV(1)
-    );
-
-    seno_lt_b_inst: Seno_LT
-     port map(
-        Address => std_logic_vector(nco_b_cnt),
-        Data => o_triV(2)
-    );
-
-    seno_lt_c_inst: Seno_LT
-     port map(
-        Address => std_logic_vector(nco_c_cnt),
-        Data => o_triV(3)
-    );
+    --Asignacion de salidas
+    o_triV(1) <= std_logic_vector(w_lineaU);
+    o_triV(2) <= std_logic_vector(w_lineaV);
+    o_triV(3) <= std_logic_vector(w_lineaW);
 
 end Behavioral;
