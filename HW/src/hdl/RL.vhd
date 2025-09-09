@@ -31,7 +31,7 @@ entity RL is
     port(
         -- Señales de control
         i_clk     : in  std_logic;
-        i_rst_n   : in  std_logic; -- Reset asíncrono activo a nivel bajo
+        i_rst   : in  std_logic; -- Reset asíncrono activo a nivel bajo
 
         -- Coeficientes del filtro (entradas configurables)
         i_c_a0    : in  sfixed(INT_BITS-1 downto -FRAC_BITS);
@@ -62,10 +62,10 @@ architecture Behavioral of RL is
 
 begin
 
-    process (i_clk, i_rst_n)
+    process (i_clk, i_rst)
     begin
 
-        if i_rst_n = '0' then
+        if i_rst = '1' then
             v_n_minus_1 <= (others => '0');
             i_n_minus_1 <= (others => '0');
             i_n_reg <= (others => '0');

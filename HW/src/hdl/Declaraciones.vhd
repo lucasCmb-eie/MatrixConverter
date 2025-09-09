@@ -1,22 +1,3 @@
-----------------------------------------------------------------------------------
--- Company: DSI/FCEIA/UNR
--- Engineer: Curso SoC
--- 
--- Create Date: 02.12.2021 16:43:56
--- Design Name: 
--- Module Name: Declaraciones - Behavioral
--- Project Name: 
--- Target Devices: 
--- Tool Versions: 
--- Description: Paquete en el que se definen los tipos de datos que se utilizaran
--- para describir la red neuronal
--- Dependencies: 
--- 
--- Revision:
--- Revision 0.01 - File Created
--- Additional Comments:
--- 
-----------------------------------------------------------------------------------
 library ieee;
 use ieee.std_logic_1164.all;
 use IEEE.STD_LOGIC_SIGNED.all;
