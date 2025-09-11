@@ -83,6 +83,7 @@ set obj [get_filesets sim_1]
 set files [list \
  [file normalize "${origin_dir}/HW/src/tb/Tb_Modulador_1.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/ncoLUT_tb.vhd"] \
+ [file normalize "${origin_dir}/HW/src/tb/tb_RL.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/matrixConmut_tb.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/sine_lut_tb.vhd"] \
 ]
