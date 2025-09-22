@@ -47,6 +47,7 @@ set files [list \
   [file normalize "${origin_dir}/HW/src/hdl/util/sine_generator.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/util/sine_lut_pkg.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/util/Declaraciones.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/util/DienteSierraGen.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/Modulador.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/AC_Source.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/matrixConmut.vhd"] \
@@ -87,8 +88,9 @@ set files [list \
  [file normalize "${origin_dir}/HW/src/tb/ncoLUT_tb.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_RL.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/matrixConmut_tb.vhd"] \
- [file normalize "${origin_dir}/HW/src/tb/sine_lut_tb.vhd"] \
+ [file normalize "${origin_dir}/HW/src/tb/sine_generator_tb.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_TransformadaClark.vhd"] \
+ [file normalize "${origin_dir}/HW/src/tb/tb_DienteSierraGen.vhd"] \
 ]
 add_files -norecurse -fileset $obj $files
 
