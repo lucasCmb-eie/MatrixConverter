@@ -39,17 +39,19 @@ set_property -name "sim.ip.auto_export_scripts" -value "1" -objects $obj
 set_property -name "simulator_language" -value "Mixed" -objects $obj
 set_property -name "target_language" -value "VHDL" -objects $obj
 
+
 # Set 'sources_1' fileset object
 set obj [get_filesets sources_1]
 set files [list \
-  [file normalize "${origin_dir}/HW/src/hdl/red_sector.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/util/red_sector.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/util/sine_generator.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/util/sine_lut_pkg.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/util/Declaraciones.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/Modulador.vhd"] \
-  [file normalize "${origin_dir}/HW/src/hdl/Declaraciones.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/AC_Source.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/matrixConmut.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/RL.vhd"] \
-  [file normalize "${origin_dir}/HW/src/hdl/sine_generator.vhd"] \
-  [file normalize "${origin_dir}/HW/src/hdl/sine_lut_pkg.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/TransformadaClark.vhd"] \
  ]
  add_files -norecurse -fileset $obj $files
 
@@ -86,6 +88,7 @@ set files [list \
  [file normalize "${origin_dir}/HW/src/tb/tb_RL.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/matrixConmut_tb.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/sine_lut_tb.vhd"] \
+ [file normalize "${origin_dir}/HW/src/tb/tb_TransformadaClark.vhd"] \
 ]
 add_files -norecurse -fileset $obj $files
 
