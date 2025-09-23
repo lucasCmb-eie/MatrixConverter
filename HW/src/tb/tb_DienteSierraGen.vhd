@@ -1,6 +1,7 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use ieee.fixed_pkg.all;
+use ieee.numeric_std.all;
 use std.env.all;
 
 entity tb_DienteSierraGen is
@@ -10,7 +11,7 @@ architecture Behavioral of tb_DienteSierraGen is
     -- Constantes para configurar el test
     constant C_CLK_FREQ_HZ   : integer := 100000000; -- 100 MHz
     constant C_CLK_PERIOD    : time    := 1 sec / C_CLK_FREQ_HZ; -- Calcula el periodo del clock (10 ns)
-    constant C_DELTA        : sfixed(7 downto -24) := to_sfixed(0.000003141, 7, -24); -- Incremento para 50 Hz
+    constant C_DELTA         : unsigned(11 downto 0) := to_unsigned(1, 12); -- Factor K para la frecuencia de salida (1 kHz)
     -- Señales para conectar al DUT
     signal w_clk        : std_logic := '0';
     signal w_rst        : std_logic;
@@ -28,7 +29,7 @@ begin
     port map (
         i_clk       => w_clk,
         i_rst       => w_rst,
-        i_delta     => C_DELTA,
+        i_k         => C_DELTA,
         o_saw       => w_sawtooth
     );
 
