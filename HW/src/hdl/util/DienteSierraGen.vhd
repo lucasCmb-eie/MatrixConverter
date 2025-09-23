@@ -18,7 +18,7 @@ architecture rtl of DienteSierraGen is
 
     -- Step mínimo (corresponde a 50 Hz deseados -> 100 Hz reales de sierra)
     constant C_STEP : sfixed(7 downto -24) :=
-        to_sfixed(3.14159265 * (2.0 * 50.0) / real(100_000_000), 7, -24);
+        to_sfixed(3.14159265 * (2.0 * 50.0) / real(1_000_000), 7, -24);
 
     signal r_acc   : sfixed(7 downto -24) := to_sfixed(0.0, 7, -24);
     signal delta_k : sfixed(7 downto -24);

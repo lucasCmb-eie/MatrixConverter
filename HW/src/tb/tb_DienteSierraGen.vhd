@@ -9,7 +9,7 @@ end tb_DienteSierraGen;
 
 architecture Behavioral of tb_DienteSierraGen is
     -- Constantes para configurar el test
-    constant C_CLK_FREQ_HZ   : integer := 100000000; -- 100 MHz
+    constant C_CLK_FREQ_HZ   : integer := 1000000; -- 1 MHz
     constant C_CLK_PERIOD    : time    := 1 sec / C_CLK_FREQ_HZ; -- Calcula el periodo del clock (10 ns)
     constant C_DELTA         : unsigned(11 downto 0) := to_unsigned(1, 12); -- Factor K para la frecuencia de salida (1 kHz)
     -- Señales para conectar al DUT
