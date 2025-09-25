@@ -53,6 +53,13 @@ set files [list \
   [file normalize "${origin_dir}/HW/src/hdl/matrixConmut.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/RL.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/TransformadaClark.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/wrappers/AC_Source_wrapper.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/wrappers/DienteSierraGen_wrapper.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/wrappers/MatrixConmut_wrapper.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/wrappers/Modulador_wrapper.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/wrappers/RL_wrapper.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/wrappers/SVM_wrapper.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/wrappers/TClark_wrapper.vhd"] \
  ]
  add_files -norecurse -fileset $obj $files
 
@@ -128,3 +135,10 @@ set_property -name "steps.write_bitstream.args.verbose" -value "0" -objects $obj
 current_run -implementation [get_runs impl_1]
 
 puts "INFO: Project created:${_xil_proj_name_}"
+
+# Create block design
+ source $origin_dir/HW/src/bd/design_LA.tcl
+
+ # Generate the wrapper
+ set design_name [get_bd_designs]
+ make_wrapper -files [get_files $design_name.bd] -top -import
