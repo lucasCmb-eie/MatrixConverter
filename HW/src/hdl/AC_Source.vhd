@@ -5,12 +5,14 @@ use IEEE.numeric_std.all;
 use work.declaraciones.all;
 use work.sine_lut_pkg.all;
 
+--!
+-- Fuente trifasica de señal senoidal
 entity AC_Source is
 port (
-    i_clk : in  std_logic; -- Entrada de Clock
-    i_rst : in  std_logic; -- Reset
+    i_clk : in  std_logic; --! Entrada de Clock : 100KHz
+    i_rst : in  std_logic; --! Reset
 
-    o_triV : out vector(1 to 3)(SINE_DATA_WIDTH - 1 downto 0) -- Salida de tensiones trifasicas (U, V ,W)
+    o_triV : out vector(1 to 3)(SINE_DATA_WIDTH - 1 downto 0) --! Salida de tensiones trifasicas (U, V ,W)
 );
 end AC_Source;
 
