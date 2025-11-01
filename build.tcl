@@ -43,20 +43,20 @@ set_property -name "target_language" -value "VHDL" -objects $obj
 # Set 'sources_1' fileset object
 set obj [get_filesets sources_1]
 set files [list \
-  [file normalize "${origin_dir}/HW/src/hdl/util/red_sector.vhd"] \
-  [file normalize "${origin_dir}/HW/src/hdl/util/sine_generator.vhd"] \
-  [file normalize "${origin_dir}/HW/src/hdl/util/sine_lut_pkg.vhd"] \
-  [file normalize "${origin_dir}/HW/src/hdl/util/Declaraciones.vhd"] \
-  [file normalize "${origin_dir}/HW/src/hdl/util/DienteSierraGen.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/Modulador.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/AC_Source.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/matrixConmut.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/RL.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/TransformadaClark.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/PhaseSawGen.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/util/red_sector.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/util/sine_generator.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/util/sine_lut_pkg.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/util/Declaraciones.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/util/DienteSierraGen.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/util/EnableGen.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/wrappers/AC_Source_wrapper.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/wrappers/DienteSierraGen_wrapper.vhd"] \
-  [file normalize "${origin_dir}/HW/src/hdl/wrappers/MatrixConmut_wrapper.vhd"] \
-  [file normalize "${origin_dir}/HW/src/hdl/wrappers/Modulador_wrapper.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/wrappers/RL_wrapper.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/wrappers/SVM_wrapper.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/wrappers/TClark_wrapper.vhd"] \
@@ -98,6 +98,7 @@ set files [list \
  [file normalize "${origin_dir}/HW/src/tb/sine_generator_tb.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_TransformadaClark.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_DienteSierraGen.vhd"] \
+ [file normalize "${origin_dir}/HW/src/tb/tb_PhaseSawGen.vhd"] \
 ]
 add_files -norecurse -fileset $obj $files
 

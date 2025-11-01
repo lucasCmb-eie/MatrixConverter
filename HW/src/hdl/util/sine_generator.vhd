@@ -8,7 +8,7 @@ use work.sine_lut_pkg.all;
 entity sine_generator is
     generic (
         -- fase inicial de la Senoide
-        PHASE_INITIAL : integer := 0
+        PHASE_INITIAL : unsigned(31 downto 0) := (others => '0')
     );
     port (
         clk   : in  std_logic;
@@ -21,9 +21,11 @@ end entity sine_generator;
 architecture rtl of sine_generator is
 
     -- Parámetros del NCO
-    constant PHASE_ACCUM_WIDTH : integer := 24;
+    constant PHASE_ACCUM_WIDTH : integer := 32;
     -- Palabra de sintonía para 50 Hz con clock de 100 kHz
-    constant FREQ_TUNING_WORD  : integer := 8389;
+    constant FREQ_TUNING_WORD  : unsigned(PHASE_ACCUM_WIDTH - 1 downto 0)
+        := to_unsigned(integer(50.0 * 2.0**32 / 100_000_000.0), PHASE_ACCUM_WIDTH);
+        -- = 2147
 
     -- Señales internas
     signal phase_accumulator : unsigned(PHASE_ACCUM_WIDTH - 1 downto 0) := (others => '0');
@@ -36,12 +38,12 @@ begin
     begin
         if reset = '1' then
             -- Carga el valor del genérico, convirtiéndolo a unsigned.
-            phase_accumulator <= to_unsigned(PHASE_INITIAL, PHASE_ACCUM_WIDTH);
+            phase_accumulator <= PHASE_INITIAL;
         end if;
 
         if rising_edge(clk) then
     
-            phase_accumulator <= phase_accumulator + to_unsigned(FREQ_TUNING_WORD, PHASE_ACCUM_WIDTH);
+            phase_accumulator <= phase_accumulator + FREQ_TUNING_WORD;
         end if;
     end process nco_process;
 

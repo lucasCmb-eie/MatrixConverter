@@ -1,7 +1,7 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 
-use work.AC_Source_pkg.all;
+use work.sine_lut_pkg.all;
 use work.declaraciones.all;
 
 entity AC_Source_wrapper is

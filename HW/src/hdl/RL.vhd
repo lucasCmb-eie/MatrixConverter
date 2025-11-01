@@ -10,8 +10,9 @@ entity RL is
     );
     port(
         -- Señales de control
-        i_clk     : in  std_logic;
-        i_rst   : in  std_logic; -- Reset asíncrono activo a nivel bajo
+        i_clk       : in  std_logic;
+        i_rst       : in  std_logic; -- Reset asíncrono activo a nivel bajo
+        i_enable    : in  std_logic;
 
         -- Coeficientes del filtro (entradas configurables)
         i_c_a0    : in  sfixed(INT_BITS-1 downto -FRAC_BITS);
@@ -62,20 +63,22 @@ begin
             i_n_minus_1 <= (others => (others => '0'));
             i_n_reg <= (others => (others => '0'));
         elsif rising_edge(i_clk) then
-            for i in 1 to 3 loop
-                -- Multiplicaciones usando variables
-                term_a0_v_n(i)   := i_c_a0 * i_Vi_s(i);
-                term_a1_v_n_1(i) := i_c_a1 * v_n_minus_1(i);
-                term_b1_i_n_1(i) := i_c_b1 * i_n_minus_1(i);
+            if i_enable = '1' then
+                for i in 1 to 3 loop
+                    -- Multiplicaciones usando variables
+                    term_a0_v_n(i)   := i_c_a0 * i_Vi_s(i);
+                    term_a1_v_n_1(i) := i_c_a1 * v_n_minus_1(i);
+                    term_b1_i_n_1(i) := i_c_b1 * i_n_minus_1(i);
 
-                -- Suma y resta
-                i_n_next(i) := resize(term_a0_v_n(i) + term_a1_v_n_1(i) - term_b1_i_n_1(i), INT_BITS-1, -FRAC_BITS);
+                    -- Suma y resta
+                    i_n_next(i) := resize(term_a0_v_n(i) + term_a1_v_n_1(i) - term_b1_i_n_1(i), INT_BITS-1, -FRAC_BITS);
 
-                -- Actualización de registros
-                v_n_minus_1(i) <= i_Vi_s(i);
-                i_n_minus_1(i) <= i_n_next(i);
-                i_n_reg(i)     <= i_n_next(i);
-            end loop;
+                    -- Actualización de registros
+                    v_n_minus_1(i) <= i_Vi_s(i);
+                    i_n_minus_1(i) <= i_n_next(i);
+                    i_n_reg(i)     <= i_n_next(i);
+                end loop;
+            end if;
         end if;
     end process;
 

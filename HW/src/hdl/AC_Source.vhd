@@ -19,14 +19,14 @@ end AC_Source;
 architecture Behavioral of AC_Source is
 
     -- Constantes para las fases
-    constant PHASE_0   : integer := 0;
-    constant PHASE_120 : integer := 5592405;
-    constant PHASE_240 : integer := 11184811;
+    constant PHASE_0   : unsigned(31 downto 0) := x"00000000";
+    constant PHASE_120 : unsigned(31 downto 0) := x"55555555";  -- 120°
+    constant PHASE_240 : unsigned(31 downto 0) := x"AAAAAAA9";  -- 240° (≈ 2863311530)
 
     --Declaración de componenete padre
     component sine_generator is
         generic (
-            PHASE_INITIAL : integer := 0
+            PHASE_INITIAL : unsigned(31 downto 0) := (others => '0')
         );
         port (
             clk      : in  std_logic;
