@@ -37,7 +37,7 @@ begin
     -- Generador de enable cada 64 µs
     U_EnableGen : entity work.EnableGen
         generic map (
-            CLK_FREQ_HZ => 100_000_000,
+            CLK_FREQ_HZ => 100000000,
             TCONV_US    => 16     -- Tconv = 16 µs
         )
         port map (

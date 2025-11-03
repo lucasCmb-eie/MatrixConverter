@@ -3,9 +3,9 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use ieee.fixed_pkg.all;
 
-entity PhaseSawGen11b is
+entity PhaseSawGen is
     generic (
-        G_CLK_FREQ : real := 1.0e5;  -- frecuencia de reloj (Hz)
+        G_CLK_FREQ : real := 1.0e8;  -- frecuencia de reloj (Hz)
         G_F_SINE   : real := 50.0    -- frecuencia de la senoide (Hz)
     );
     port (
@@ -16,7 +16,7 @@ entity PhaseSawGen11b is
     );
 end entity;
 
-architecture rtl of PhaseSawGen11b is
+architecture rtl of PhaseSawGen is
     constant C_PHASE_BITS   : integer := 11;
     constant C_PHASE_MAX    : integer := 2**C_PHASE_BITS;
     constant C_PERIOD_TICKS : integer := integer(G_CLK_FREQ / G_F_SINE);

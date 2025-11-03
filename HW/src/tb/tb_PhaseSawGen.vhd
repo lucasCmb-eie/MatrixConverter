@@ -12,8 +12,8 @@ end entity;
 architecture tb of tb_PhaseSaw_with_Clark is
 
     -- Clock period: 100 kHz → 10 us per period
-    constant CLK_FREQ : real := 1.0e5;
-    constant PER      : time := 10 us;
+    constant CLK_FREQ : real := 1.0e8;
+    constant PER      : time := 10 ns;
     constant PER2     : time := PER / 2.0;
 
     -- Señales de prueba
@@ -33,7 +33,7 @@ begin
     ------------------------------------------------------------
     -- Instancia del DUT (PhaseSawGen11b)
     ------------------------------------------------------------
-    UUT: entity work.PhaseSawGen11b
+    UUT: entity work.PhaseSawGen
         generic map (
             G_CLK_FREQ => CLK_FREQ,
             G_F_SINE   => 50.0
