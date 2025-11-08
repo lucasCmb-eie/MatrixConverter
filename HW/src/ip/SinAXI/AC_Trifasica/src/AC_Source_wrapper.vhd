@@ -1,23 +1,24 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 
-use work.sine_lut_pkg.all;
+library work;
 use work.declaraciones.all;
+use work.sine_lut_pkg.all;
 
 entity AC_Source_wrapper is
     port (
         i_clk : in  std_logic; --! Entrada de Clock : 100KHz
         i_rst : in  std_logic; --! Reset
 
-        o_U : out std_logic_vector(SINE_DATA_WIDTH - 1 downto 0); --! Salida de la tensión de linea U
-        o_V : out std_logic_vector(SINE_DATA_WIDTH - 1 downto 0); --! Salida de la tensión de linea V
-        o_W : out std_logic_vector(SINE_DATA_WIDTH - 1 downto 0)  --! Salida de la tensión de linea W
+        o_U : out std_logic_vector(31 downto 0); --! Salida de la tensión de linea U
+        o_V : out std_logic_vector(31 downto 0); --! Salida de la tensión de linea V
+        o_W : out std_logic_vector(31 downto 0)  --! Salida de la tensión de linea W
      );
 end AC_Source_wrapper;
 
 architecture Behavioral of AC_Source_wrapper is
     
-    signal w_triV : vector(1 to 3)(SINE_DATA_WIDTH - 1 downto 0);
+    signal w_triV : vector(1 to 3)(31 downto 0);
 
 begin
 

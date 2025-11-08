@@ -2,7 +2,6 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.numeric_std.all;
 
-use work.declaraciones.all;
 use work.sine_lut_pkg.all;
 
 --!
@@ -12,7 +11,10 @@ port (
     i_clk : in  std_logic; --! Entrada de Clock : 100KHz
     i_rst : in  std_logic; --! Reset
 
-    o_triV : out vector(1 to 3)(SINE_DATA_WIDTH - 1 downto 0) --! Salida de tensiones trifasicas (U, V ,W)
+    o_U : out std_logic_vector(31 downto 0); --! Salida de tension de linea U
+    o_V : out std_logic_vector(31 downto 0); --! Salida de tension de linea V
+    o_W : out std_logic_vector(31 downto 0) --! Salida de tension de linea W
+
 );
 end AC_Source;
 
@@ -23,6 +25,10 @@ architecture Behavioral of AC_Source is
     constant PHASE_120 : unsigned(31 downto 0) := x"55555555";  -- 120°
     constant PHASE_240 : unsigned(31 downto 0) := x"AAAAAAA9";  -- 240° (≈ 2863311530)
 
+    signal w_U : signed(31 downto 0);
+    signal w_V : signed(31 downto 0);
+    signal w_W : signed(31 downto 0);
+
     --Declaración de componenete padre
     component sine_generator is
         generic (
@@ -31,14 +37,9 @@ architecture Behavioral of AC_Source is
         port (
             clk      : in  std_logic;
             reset    : in  std_logic;
-            sine_out : out signed(SINE_DATA_WIDTH - 1 downto 0)
+            sine_out : out signed(31 downto 0)
         );
     end component;
-
-    signal w_lineaU : SIGNED(SINE_DATA_WIDTH - 1 downto 0);
-    signal w_lineaV : SIGNED(SINE_DATA_WIDTH - 1 downto 0);
-    signal w_lineaW : SIGNED(SINE_DATA_WIDTH - 1 downto 0);
-    
 
 begin
 
@@ -52,7 +53,7 @@ begin
             clk   => i_clk,
             reset => i_rst,
             
-            sine_out => w_lineaU
+            sine_out => w_U
         );
 
     Linea_V: sine_generator
@@ -63,7 +64,7 @@ begin
             clk   => i_clk,
             reset => i_rst,
             
-            sine_out => w_lineaV
+            sine_out => w_V
         );
 
     Linea_W: sine_generator
@@ -74,12 +75,11 @@ begin
             clk   => i_clk,
             reset => i_rst,
             
-            sine_out => w_lineaW
+            sine_out => w_W
         );
 
-    --Asignacion de salidas
-    o_triV(1) <= std_logic_vector(w_lineaU);
-    o_triV(2) <= std_logic_vector(w_lineaV);
-    o_triV(3) <= std_logic_vector(w_lineaW);
+        o_U <= std_logic_vector(w_U);
+        o_V <= std_logic_vector(w_V);
+        o_W <= std_logic_vector(w_W);
 
 end Behavioral;

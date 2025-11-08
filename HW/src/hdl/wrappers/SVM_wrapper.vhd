@@ -1,7 +1,5 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
-use work.declaraciones.all;
-
 
 entity SVM_wrapper is
     port (
@@ -30,9 +28,7 @@ end SVM_wrapper;
 architecture Behavioral of SVM_wrapper is
 
     signal w_direcciones : std_logic_vector(17 downto 0); --Coeficientes de la matriz de conmutacion
-    signal w_o_V : vector(1 to 3)(31 downto 0);
-    signal w_i_V : vector(1 to 3)(31 downto 0);
-
+    
 begin
 
     modulador_core : entity work.modulador
@@ -53,18 +49,13 @@ begin
         port map (
             i_clk => i_clk,
             i_M   => w_direcciones,
-            i_V   => w_i_V,
-            o_V   => w_o_V
+            i_U => i_U,
+            i_V => i_V,
+            i_W => i_W,
+
+            o_U => o_U,
+            o_V => o_V,
+            o_W => o_W
         );
-
-    --Entradas de Tension
-    w_i_V(1) <= i_U;
-    w_i_V(2) <= i_V;
-    w_i_V(3) <= i_W;
-
-    --Salidas de Tension
-    o_U <= w_o_V(1);
-    o_V <= w_o_V(2);
-    o_W <= w_o_V(3);
 
 end Behavioral;

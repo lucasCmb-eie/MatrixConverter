@@ -2,12 +2,16 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.fixed_pkg.all;
 
-use work.declaraciones.all;
-
 entity TransformadaClark is
 port (
-    i_uvw : in  vector(1 to 3)(31 downto 0); -- Entradas de tensiones trifasicas (U, V ,W)
-    o_alfa_beta : out vector(1 to 2)(31 downto 0) -- Salidas de tensiones en el sistema alfa-beta
+    -- Entradas de tensiones trifasicas (U, V ,W)
+    i_U : in std_logic_vector (31 downto 0);
+    i_V : in std_logic_vector (31 downto 0);
+    i_W : in std_logic_vector (31 downto 0);
+
+    -- Salidas de tensiones en el sistema alfa-beta
+    o_alfa : out std_logic_vector(31 downto 0);
+    o_beta : out std_logic_vector(31 downto 0)
 );
 end TransformadaClark;
 
@@ -24,13 +28,13 @@ architecture Behavioral of TransformadaClark is
 
     begin
 
-        process (i_uvw)
+        process (i_U, i_V, i_W)
         begin
-            w_alfa <= K_CLARK_AMPL * (to_sfixed(i_uvw(1), 7, -24) + K_CLARK_A * to_sfixed(i_uvw(2), 7, -24) + K_CLARK_A * to_sfixed(i_uvw(3), 7, -24));
-            w_beta <= K_CLARK_AMPL * (K_CLARK_B * to_sfixed(i_uvw(2), 7, -24) + K_CLARK_C * to_sfixed(i_uvw(3), 7, -24));
+            w_alfa <= K_CLARK_AMPL * (to_sfixed(i_U, 7, -24) + K_CLARK_A * to_sfixed(i_V, 7, -24) + K_CLARK_A * to_sfixed(i_W, 7, -24));
+            w_beta <= K_CLARK_AMPL * (K_CLARK_B * to_sfixed(i_V, 7, -24) + K_CLARK_C * to_sfixed(i_W, 7, -24));
         end process;
 
         -- Asignación de las salidas
-        o_alfa_beta(1) <= to_slv(resize(w_alfa, 7, -24));
-        o_alfa_beta(2) <= to_slv(resize(w_beta, 7, -24));
+        o_alfa <= to_slv(resize(w_alfa, 7, -24));
+        o_beta <= to_slv(resize(w_beta, 7, -24));
     end Behavioral;
