@@ -4,7 +4,7 @@ use IEEE.NUMERIC_STD.ALL;
 
 entity EnableGen is
     generic (
-        CLK_FREQ_HZ : integer := 100000000;  -- 100 MHz
+        CLK_FREQ_HZ : integer := 100_000_000;  -- 100 MHz
         TCONV_US    : integer := 16            -- 64 µs o 16 µs según XADC
     );
     port (
@@ -15,7 +15,7 @@ entity EnableGen is
 end entity;
 
 architecture Behavioral of EnableGen is
-    constant COUNT_MAX : integer := (CLK_FREQ_HZ / 1000000) * TCONV_US - 1;
+    constant COUNT_MAX : integer := (CLK_FREQ_HZ / 1_000_000) * TCONV_US - 1;
     signal counter     : integer range 0 to COUNT_MAX := 0;
     signal tick_int    : std_logic := '0';
 begin

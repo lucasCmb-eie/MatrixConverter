@@ -54,7 +54,7 @@ begin
                 term_b1_i_n_1 := i_c_b1 * I_z1;
 
                 -- Ecuación de diferencia discreta
-                i_n_next := resize(term_a0_v_n + term_a1_v_n_1 + term_b1_i_n_1, INT_BITS-1, -FRAC_BITS);
+                i_n_next := resize(term_a0_v_n + term_a1_v_n_1 - term_b1_i_n_1, INT_BITS-1, -FRAC_BITS);
 
                 -- Actualización de memorias
                 I_n <= i_n_next;

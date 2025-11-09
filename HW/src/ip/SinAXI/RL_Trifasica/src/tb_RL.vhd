@@ -56,8 +56,10 @@ begin
             i_clk   => test_clk_in,
             i_rst   => test_rst_in,
 
+            o_Enable => test_enable,
+
             i_c_a0  => to_slv(alpha1_slv),
-            i_c_a1  => to_slv(alpha1_slv),
+            i_c_a1  => to_slv(beta1_slv),
             i_c_b1  => to_slv(beta1_slv),
 
             i_U => test_wU,
