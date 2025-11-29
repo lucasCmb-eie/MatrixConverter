@@ -3,6 +3,10 @@ use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.fixed_pkg.all;
 
 entity TransformadaClark is
+generic (
+        INT_BITS  : integer := 3;
+        FRAC_BITS : integer := 29
+    );
 port (
     -- Entradas de tensiones trifasicas (U, V ,W)
     i_U : in std_logic_vector (31 downto 0);
@@ -16,11 +20,11 @@ port (
 end TransformadaClark;
 
 architecture Behavioral of TransformadaClark is
-    -- Constantes en formato Q8.24 para amplitud invariante
-    constant K_CLARK_AMPL : sfixed(7 downto -24) := to_sfixed(2.0/3.0, 7, -24);     -- 2/3
-    constant K_CLARK_A : sfixed(7 downto -24) := to_sfixed(-0.5, 7, -24);            --1/2
-    constant K_CLARK_B : sfixed(7 downto -24) := to_sfixed(0.81649658, 7, -24);     -- sqrt(3)/2
-    constant K_CLARK_C : sfixed(7 downto -24) := to_sfixed(-0.81649658, 7, -24);    -- -sqrt(3)/2
+    -- Constantes en formato Q3.29 para amplitud invariante
+    constant K_CLARK_AMPL : sfixed(INT_BITS - 1 downto -FRAC_BITS) := to_sfixed(2.0/3.0, INT_BITS - 1, -FRAC_BITS);     -- 2/3
+    constant K_CLARK_A : sfixed(INT_BITS - 1 downto -FRAC_BITS) := to_sfixed(-0.5, INT_BITS - 1, -FRAC_BITS);            --1/2
+    constant K_CLARK_B : sfixed(INT_BITS - 1 downto -FRAC_BITS) := to_sfixed(0.81649658, INT_BITS - 1, -FRAC_BITS);     -- sqrt(3)/2
+    constant K_CLARK_C : sfixed(INT_BITS - 1 downto -FRAC_BITS) := to_sfixed(-0.81649658, INT_BITS - 1, -FRAC_BITS);    -- -sqrt(3)/2
 
     -- Señales internas para las componentes alfa y beta
     signal w_alfa : sfixed(25 downto -72) := (others => '0');

@@ -30,35 +30,21 @@ end RL_wrapper;
 
 architecture Behavioral of RL_wrapper is
 
-    signal tick_enable : std_logic;
     signal w_oU : sfixed(INT_BITS-1 downto -FRAC_BITS);
     signal w_oV : sfixed(INT_BITS-1 downto -FRAC_BITS);
     signal w_oW : sfixed(INT_BITS-1 downto -FRAC_BITS);
 
 begin
 
-    -- Generador de enable cada 64 µs
-    U_EnableGen : entity work.EnableGen
-        generic map (
-            CLK_FREQ_HZ => 100000000,
-            TCONV_US    => 16     -- Tconv = 16 µs
-        )
-        port map (
-            i_clk  => i_clk,
-            i_rst  => i_rst,
-            o_tick => tick_enable
-        );
-
     RL_U : entity work.RL_fase
         generic map (INT_BITS => INT_BITS, FRAC_BITS => FRAC_BITS)
         port map (
             i_clk => i_clk,
             i_rst => i_rst,
-            i_enable => tick_enable,
-            i_c_a0 => to_sfixed(i_c_a0, 7, -24),
-            i_c_a1 => to_sfixed(i_c_a1, 7, -24),
-            i_c_b1 => to_sfixed(i_c_b1, 7, -24),
-            i_U => to_sfixed(i_U, 7, -24),
+            i_c_a0 => to_sfixed(i_c_a0, INT_BITS-1, -FRAC_BITS),
+            i_c_a1 => to_sfixed(i_c_a1, INT_BITS-1, -FRAC_BITS),
+            i_c_b1 => to_sfixed(i_c_b1, INT_BITS-1, -FRAC_BITS),
+            i_U => to_sfixed(i_U, INT_BITS-1, -FRAC_BITS),
             o_I => w_oU
         );
 
@@ -67,11 +53,10 @@ begin
         port map (
             i_clk => i_clk,
             i_rst => i_rst,
-            i_enable => tick_enable,
-            i_c_a0 => to_sfixed(i_c_a0, 7, -24),
-            i_c_a1 => to_sfixed(i_c_a1, 7, -24),
-            i_c_b1 => to_sfixed(i_c_b1, 7, -24),
-            i_U => to_sfixed(i_V, 7, -24),
+            i_c_a0 => to_sfixed(i_c_a0, INT_BITS-1, -FRAC_BITS),
+            i_c_a1 => to_sfixed(i_c_a1, INT_BITS-1, -FRAC_BITS),
+            i_c_b1 => to_sfixed(i_c_b1, INT_BITS-1, -FRAC_BITS),
+            i_U => to_sfixed(i_V, INT_BITS-1, -FRAC_BITS),
             o_I => w_oV
         );
 
@@ -80,11 +65,10 @@ begin
         port map (
             i_clk => i_clk,
             i_rst => i_rst,
-            i_enable => tick_enable,
-            i_c_a0 => to_sfixed(i_c_a0, 7, -24),
-            i_c_a1 => to_sfixed(i_c_a1, 7, -24),
-            i_c_b1 => to_sfixed(i_c_b1, 7, -24),
-            i_U => to_sfixed(i_W, 7, -24),
+            i_c_a0 => to_sfixed(i_c_a0, INT_BITS-1, -FRAC_BITS),
+            i_c_a1 => to_sfixed(i_c_a1, INT_BITS-1, -FRAC_BITS),
+            i_c_b1 => to_sfixed(i_c_b1, INT_BITS-1, -FRAC_BITS),
+            i_U => to_sfixed(i_W, INT_BITS-1, -FRAC_BITS),
             o_I => w_oW
         );
 

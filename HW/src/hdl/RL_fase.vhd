@@ -13,7 +13,6 @@ entity RL_fase is
     port (
         i_clk    : in  std_logic;
         i_rst    : in  std_logic;
-        i_enable : in  std_logic;
 
         i_c_a0 : in sfixed(INT_BITS-1 downto -FRAC_BITS);
         i_c_a1 : in sfixed(INT_BITS-1 downto -FRAC_BITS);
@@ -46,21 +45,18 @@ begin
             I_n  <= (others => '0');
 
         elsif rising_edge(i_clk) then
-            if (i_enable = '1') then
+            -- Multiplicaciones usando variables
+            term_a0_v_n   := i_c_a0 * i_U;
+            term_a1_v_n_1 := i_c_a1 * U_z1;
+            term_b1_i_n_1 := i_c_b1 * I_z1;
 
-                -- Multiplicaciones usando variables
-                term_a0_v_n   := i_c_a0 * i_U;
-                term_a1_v_n_1 := i_c_a1 * U_z1;
-                term_b1_i_n_1 := i_c_b1 * I_z1;
+            -- Ecuación de diferencia discreta
+            i_n_next := resize(term_a0_v_n + term_a1_v_n_1 + term_b1_i_n_1, INT_BITS-1, -FRAC_BITS);
 
-                -- Ecuación de diferencia discreta
-                i_n_next := resize(term_a0_v_n + term_a1_v_n_1 + term_b1_i_n_1, INT_BITS-1, -FRAC_BITS);
-
-                -- Actualización de memorias
-                I_n <= i_n_next;
-                U_z1 <= i_U;
-                I_z1 <= i_n_next;
-            end if;
+            -- Actualización de memorias
+            I_n <= i_n_next;
+            U_z1 <= i_U;
+            I_z1 <= i_n_next;
         end if;
     end process;
 

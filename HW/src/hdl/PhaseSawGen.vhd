@@ -6,12 +6,14 @@ use ieee.fixed_pkg.all;
 entity PhaseSawGen is
     generic (
         G_CLK_FREQ : real := 1.0e8;  -- frecuencia de reloj (Hz)
-        G_F_SINE   : real := 50.0    -- frecuencia de la senoide (Hz)
+        G_F_SINE   : real := 50.0;    -- frecuencia de la senoide (Hz)
+        INT_BITS    : integer := 3;
+        FRAC_BITS   : integer := 29
     );
     port (
         i_clk    : in  std_logic;
         i_rst    : in  std_logic;
-        i_sin    : in  sfixed(7 downto -24);
+        i_sin    : in  sfixed(INT_BITS - 1 downto -FRAC_BITS);
         o_angle  : out std_logic_vector(10 downto 0)
     );
 end entity;
@@ -25,7 +27,7 @@ architecture rtl of PhaseSawGen is
     constant C_DELTA : real := real(C_PHASE_MAX) / real(C_PERIOD_TICKS);
 
     signal phase_acc  : unsigned(C_PHASE_BITS-1 downto 0) := (others => '0');
-    signal sin_d      : sfixed(7 downto -24);
+    signal sin_d      : sfixed(INT_BITS - 1 downto -FRAC_BITS);
     signal zero_cross : std_logic := '0';
 begin
 
@@ -34,7 +36,7 @@ begin
     begin
         if i_rst = '1' then
             phase_acc  <= (others => '0');
-            sin_d      <= to_sfixed(0.0, 7, -24);
+            sin_d      <= to_sfixed(0.0, INT_BITS - 1, -FRAC_BITS);
             zero_cross <= '0';
             phase_real := 0.0;
         elsif rising_edge(i_clk) then
