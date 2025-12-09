@@ -4,68 +4,97 @@ use IEEE.numeric_std.all;
 use ieee.fixed_pkg.all;
 
 entity matrixConmut is
+    generic (
+        -- Configuración de punto fijo (Q8.24 por defecto)
+        INT_BITS    : integer := 8;  -- Parte entera (incluye signo)
+        FRAC_BITS   : integer := 24  -- Parte fraccionaria
+    );
     port(
-        i_clk: in std_logic;
-        i_M: in std_logic_vector(17 downto 0);  -- Coeficientes dados por el algoritmo del modulador
+        i_clk : in std_logic;
+        
+        -- Matriz de control (9 bits usados de los 18 disponibles)
+        i_M   : in std_logic_vector(17 downto 0);
 
-        -- Tensiones de entrada trifasicas
-        i_U: in std_logic_vector(31 downto 0);
-        i_V: in std_logic_vector(31 downto 0);
-        i_W: in std_logic_vector(31 downto 0);
+        -- Entradas dinámicas (El ancho se ajusta automáticamente)
+        -- Ancho total = INT_BITS + FRAC_BITS
+        i_U   : in std_logic_vector(INT_BITS + FRAC_BITS - 1 downto 0);
+        i_V   : in std_logic_vector(INT_BITS + FRAC_BITS - 1 downto 0);
+        i_W   : in std_logic_vector(INT_BITS + FRAC_BITS - 1 downto 0);
 
-        -- Tensiones de salida trifasicas conmutadas
-        o_U: out std_logic_vector(31 downto 0);
-        o_V: out std_logic_vector(31 downto 0);
-        o_W: out std_logic_vector(31 downto 0)
+        -- Salidas dinámicas
+        o_U   : out std_logic_vector(INT_BITS + FRAC_BITS - 1 downto 0);
+        o_V   : out std_logic_vector(INT_BITS + FRAC_BITS - 1 downto 0);
+        o_W   : out std_logic_vector(INT_BITS + FRAC_BITS - 1 downto 0)
     );
 end matrixConmut;
 
- architecture Behavioral of matrixConmut is
-    type vec_sfixed is array (natural range <>) of sfixed(7 downto -24); 			--Estas declaracionesde tipo solos se utilizan en este archivo
-    type vector is array (natural range <>) of std_logic_vector(31 downto 0);
-    type matN is array (natural range <>, natural range <>) of std_logic;	--es por eso que no se agregaron a declaraciones.vhd
+architecture Behavioral of matrixConmut is
 
-
-    signal R_reg : vec_sfixed(0 to 2);    
-    signal M: matN(0 to 2, 0 to 2);
-    signal w_Vtrif : vector(1 to 3);
-
-
-    begin
-        
-		--Creamos la Matriz a partir del vector de coeficientes de entrada
-    M <= (
-        0 => (0 => i_M(0), 1 => i_M(1), 2 => i_M(2)),
-        1 => (0 => i_M(3), 1 => i_M(4), 2 => i_M(5)),
-        2 => (0 => i_M(6), 1 => i_M(7), 2 => i_M(8))
-    );
-
-    w_Vtrif <= (
-        1 => i_U,
-        2 => i_V,
-        3 => i_W
-    );
+    -- ========================================================================
+    -- DEFINICIÓN DE CONSTANTES Y RANGOS
+    -- ========================================================================
+    -- Calculamos los límites del sfixed. 
+    -- Ejemplo Q8.24: High=7, Low=-24.
+    constant HIGH_BIT : integer := INT_BITS - 1;
+    constant LOW_BIT  : integer := -FRAC_BITS;
     
+    -- Bits de guarda para el acumulador. 
+    -- Al sumar 3 señales, el valor puede crecer log2(3) = 1.58 bits.
+    -- Agregamos 2 bits extra a la parte entera para evitar desbordamiento interno.
+    constant ACC_HIGH_BIT : integer := HIGH_BIT + 2;
 
-    process (i_clk)
-        variable acc : sfixed(9 downto -24) := to_sfixed(0.0, 9, -24);  -- Q8.24
-        variable v_in : sfixed(7 downto -24) := to_sfixed(0.0, 7, -24);
+    -- ========================================================================
+    -- SEÑALES INTERNAS
+    -- ========================================================================
+    -- Señales convertidas a tipo sfixed con el rango dinámico
+    signal s_U, s_V, s_W : sfixed(HIGH_BIT downto LOW_BIT);
+    
+    -- Array para los términos intermedios (AND lógico entre señal y matriz)
+    type t_phase_terms is array (0 to 2) of sfixed(HIGH_BIT downto LOW_BIT);
+    signal terms_U, terms_V, terms_W : t_phase_terms;
+
+    -- Acumuladores con rango extendido
+    signal acc_U, acc_V, acc_W : sfixed(ACC_HIGH_BIT downto LOW_BIT);
+
+begin
+
+    -- 1. Conversión de entrada (std_logic_vector -> sfixed)
+    -- Se usa los límites calculados para interpretar correctamente el vector
+    s_U <= to_sfixed(i_U, HIGH_BIT, LOW_BIT);
+    s_V <= to_sfixed(i_V, HIGH_BIT, LOW_BIT);
+    s_W <= to_sfixed(i_W, HIGH_BIT, LOW_BIT);
+
+    -- 2. Lógica de Matriz (Enrutamiento/Enmascarado)
+    -- Fila U (Indices de i_M: 0, 3, 6)
+    terms_U(0) <= s_U when i_M(0) = '1' else (others => '0');
+    terms_U(1) <= s_V when i_M(3) = '1' else (others => '0');
+    terms_U(2) <= s_W when i_M(6) = '1' else (others => '0');
+
+    -- Fila V (Indices de i_M: 1, 4, 7)
+    terms_V(0) <= s_U when i_M(1) = '1' else (others => '0');
+    terms_V(1) <= s_V when i_M(4) = '1' else (others => '0');
+    terms_V(2) <= s_W when i_M(7) = '1' else (others => '0');
+
+    -- Fila W (Indices de i_M: 2, 5, 8)
+    terms_W(0) <= s_U when i_M(2) = '1' else (others => '0');
+    terms_W(1) <= s_V when i_M(5) = '1' else (others => '0');
+    terms_W(2) <= s_W when i_M(8) = '1' else (others => '0');
+
+    -- 3. Suma y Registro
+    process(i_clk)
     begin
         if rising_edge(i_clk) then
-            for j in 0 to 2 loop
-            acc := to_sfixed(0.0, 9, -24);
-                for i in 0 to 2 loop
-                    v_in := to_sfixed(w_Vtrif(i+1), 7, -24);
-                    if M(i,j) = '1' then
-                        acc := resize(acc + v_in, 9, -24);
-                    end if;
-                end loop;
-            R_reg(j) <= resize(acc, 7, -24);
-            end loop;
+            -- Resize maneja la extensión de signo automáticamente al tamaño de ACC_HIGH_BIT
+            acc_U <= resize(terms_U(0) + terms_U(1) + terms_U(2), ACC_HIGH_BIT, LOW_BIT);
+            acc_V <= resize(terms_V(0) + terms_V(1) + terms_V(2), ACC_HIGH_BIT, LOW_BIT);
+            acc_W <= resize(terms_W(0) + terms_W(1) + terms_W(2), ACC_HIGH_BIT, LOW_BIT);
         end if;
     end process;
 
-    o_U <= to_slv(R_reg(0));
-    o_V <= to_slv(R_reg(1));
-    o_W <= to_slv(R_reg(2));
+    -- 4. Salida (Recorte y conversión a std_logic_vector)
+    -- Tomamos solo los bits que corresponden al formato de salida, descartando los bits de guarda
+    o_U <= to_slv(acc_U(HIGH_BIT downto LOW_BIT));
+    o_V <= to_slv(acc_V(HIGH_BIT downto LOW_BIT));
+    o_W <= to_slv(acc_W(HIGH_BIT downto LOW_BIT));
+
 end Behavioral;
