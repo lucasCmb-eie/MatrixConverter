@@ -15,7 +15,7 @@
 
 library ieee;
   use ieee.std_logic_1164.all;
-  -- use IEEE.STD_LOGIC_ARITH.ALL;
+  use IEEE.STD_LOGIC_ARITH.ALL;
   use ieee.std_logic_unsigned.all;
 
 library unisim;
@@ -127,6 +127,8 @@ architecture behavioral of modulador is
   signal signo_phi,  lavel_div : std_logic;
   signal amp_parcial           : std_logic_vector(17 downto 0);
 
+  signal mod_profp_abs : std_logic_vector(35 downto 0);
+
   component red_sector is
     port (
       al_o   : in    std_logic_vector(10 downto 0);
@@ -159,6 +161,11 @@ begin
   o_fin_ciclo    <= ciclo_end;
   o_inicio_ciclo <= ciclo_ini;
   o_fin_calc_ts  <= calculo_end;
+
+  -- Si es negativo (bit 35='1'), invertimos y sumamos 1 (Complemento a 2).
+-- Si es positivo, pasa directo.
+  mod_profp_abs <= (not mod_profp) + 1 when mod_profp(35) = '1' else 
+                 mod_profp;
 
   ------------------------------------------------------------------------------------
   --
@@ -303,9 +310,10 @@ begin
   resul_suma <= op1_suma + op2_suma;
   -- resul_resta <= op1_resta - op2_resta;
 
-  mod_profp <= mod_profa * mod_profb; --  MUL3
-  hi_bits   <= '0' when mod_profp (35 downto 25) = "00000000000" else
-               '1';
+  mod_profp <= ieee.std_logic_arith."*"(signed(mod_profa), signed(mod_profb)); --  MUL3
+  
+  -- Solo activa hi_bits si el SIGNO es positivo (bit 35='0') Y hay bits altos encendidos
+  hi_bits <= '1' when (mod_profp(35) = '0' and mod_profp(34 downto 25) /= "0000000000") else '0';
 
   --
   -- Calculo de tiempos de aplicacion de vectores no nulos
@@ -452,33 +460,32 @@ begin
           mod_profa <= mod_profp (26 downto 9);
           mod_profb <= procos00;
 
-        when "00000010111" =>                                                                                                    --
-
-          if (hi_bits = '0') then
-            dela02 <= mod_profp (24 downto 15);                                                                                  -- Toma el primer TON
-            dela12 <= mod_profp (24 downto 15);                                                                                  -- Espeja el primer TON
+       -- Usamos ABS, y mantenemos la protección de hi_bits por seguridad
+          if (hi_bits = '1') then 
+            dela02 <= "1111111111"; 
+            dela12 <= "1111111111"; 
           else
-            dela02 <= "1111111111";                                                                                              -- Toma el primer TON
-            dela12 <= "1111111111";                                                                                              -- Espeja el primer TON
+            -- AQUI EL CAMBIO: Usamos mod_profp_abs en lugar de mod_profp
+            dela02 <= mod_profp_abs (24 downto 15);
+            dela12 <= mod_profp_abs (24 downto 15);
           end if;
           mod_profb <= procos01;
 
-        when "00000011000" =>                                                                                                    --
-
-          if (hi_bits = '0') then
-            dela03 <= mod_profp (24 downto 15);                                                                                  -- Toma el segundo TON
-            dela11 <= mod_profp (24 downto 15);                                                                                  -- Espeja el segundo TON
+        when "00000011000" =>
+          if (hi_bits = '1') then 
+            dela03 <= "1111111111"; 
+            dela11 <= "1111111111"; 
           else
-            dela03 <= "1111111111";                                                                                              -- Toma el segundo TON
-            dela11 <= "1111111111";                                                                                              -- Espeja el segundo TON
+            dela03 <= mod_profp_abs (24 downto 15); -- Cambio aquí
+            dela11 <= mod_profp_abs (24 downto 15); -- Cambio aquí
           end if;
           mod_profb <= procos02;
-
+          
         when "00000011001" =>                                                                                                    --
 
           if (hi_bits = '0') then
-            dela05 <= mod_profp (24 downto 15);                                                                                  -- Toma el tercer TON
-            dela09 <= mod_profp (24 downto 15);                                                                                  -- Espeja el tercer TON
+            dela05 <= mod_profp_abs (24 downto 15);                                                                                  -- Toma el tercer TON
+            dela09 <= mod_profp_abs (24 downto 15);                                                                                  -- Espeja el tercer TON
           else
             dela05 <= "1111111111";                                                                                              -- Toma el tercer TON
             dela09 <= "1111111111";                                                                                              -- Espeja el tercer TON
@@ -488,8 +495,8 @@ begin
         when "00000011010" =>                                                                                                    --
 
           if (hi_bits = '0') then
-            dela06 <= mod_profp (24 downto 15);                                                                                  -- Toma el cuarto TON
-            dela08 <= mod_profp (24 downto 15);                                                                                  -- Espeja el cuarto TON
+            dela06 <= mod_profp_abs (24 downto 15);                                                                                  -- Toma el cuarto TON
+            dela08 <= mod_profp_abs (24 downto 15);                                                                                  -- Espeja el cuarto TON
           else
             dela06 <= "1111111111";                                                                                              -- Toma el cuarto TON
             dela08 <= "1111111111";                                                                                              -- Espeja el cuarto TON
