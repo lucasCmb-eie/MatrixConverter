@@ -2,8 +2,8 @@
 clear; clc; close all;
 
 % Parámetros de simulación (Coinciden con tu VHDL)
-filename = 'salida_svm_5MHz.csv';
-Fs = 5e6;           % Frecuencia de muestreo: 5 MHz
+filename = 'salida_svm_50Hz_100MHz.csv';
+Fs = 100e6;           % Frecuencia de muestreo: 5 MHz
 Ts = 1/Fs;          % Periodo de muestreo: 200 ns
 
 %% Importación de Datos
@@ -26,7 +26,7 @@ t = n_muestras * Ts;
 
 %% Grafico 1: Dominio del Tiempo (Vista General)
 figure('Name', 'Salida SVM - Dominio del Tiempo', 'Color', 'w');
-subplot(2,1,1);
+subplot(4,1,1);
 plot(t, u, 'r', 'LineWidth', 1); hold on;
 plot(t, v, 'g', 'LineWidth', 1);
 plot(t, w, 'b', 'LineWidth', 1);
@@ -38,14 +38,32 @@ title('Tensiones Trifásicas SVM (Simulación VHDL)');
 xlim([0 max(t)]);
 
 % Zoom a un par de ciclos (40ms aprox) para ver detalle
-subplot(2,1,2);
+subplot(4,1,2);
 plot(t, u, 'r', 'LineWidth', 1.2);
 grid on;
 xlabel('Tiempo [s]');
 ylabel('Amplitud [V]');
 title('Zoom Fase U (Detalle de Conmutación)');
-% Mostramos solo los primeros 40ms o el total si es menor
 xlim([0 min(0.04, max(t))]); 
+
+% Zoom a un par de ciclos (40ms aprox) para ver detalle
+subplot(4,1,3);
+plot(t, v, 'g', 'LineWidth', 1.2);
+grid on;
+xlabel('Tiempo [s]');
+ylabel('Amplitud [V]');
+title('Zoom Fase V (Detalle de Conmutación)');
+xlim([0 min(0.04, max(t))]); 
+
+% Zoom a un par de ciclos (40ms aprox) para ver detalle
+subplot(4,1,4);
+plot(t, w, 'b', 'LineWidth', 1.2);
+grid on;
+xlabel('Tiempo [s]');
+ylabel('Amplitud [V]');
+title('Zoom Fase W (Detalle de Conmutación)');
+xlim([0 min(0.04, max(t))]); 
+% Mostramos solo los primeros 40ms o el total si es menor
 
 %% Grafico 2: Análisis Espectral (FFT de Fase U)
 % Útil para validar la fundamental de 50Hz y ver armónicos
@@ -86,12 +104,26 @@ G_z = c2d(G_s, Ts, 'tustin'); % Método Tustin (bilineal) recomendado
 % Usamos lsim para aplicar las tensiones grabadas al sistema
 fprintf('Calculando corrientes (simulando respuesta dinámica)...\n');
 
-% Como lsim toma (sistema, entrada, tiempo), calculamos para cada fase
-% Nota: Asumimos carga en estrella equilibrada con neutro conectado para simplificar
-% (Si no hay neutro, se usarían tensiones de línea, pero esto es una buena aproximación inicial)
-i_u = lsim(G_z, u, t);
-i_v = lsim(G_z, v, t);
-i_w = lsim(G_z, w, t);
+% 1. Calcular la Tensión de Modo Común (Tensión del Neutro)
+% En una carga equilibrada, el potencial del neutro es el promedio de las fases.
+v_neutro = (u + v + w) / 3;
+
+% 2. Calcular las Tensiones Fase-Neutro (Lo que realmente ve la bobina)
+% Restamos la tensión de modo común a cada fase.
+u_load = u - v_neutro;
+v_load = v - v_neutro;
+w_load = w - v_neutro;
+
+% 3. Simular la corriente usando las tensiones corregidas
+% Ahora el sistema "ve" un neutro flotante y la suma de corrientes será 0.
+i_u = lsim(G_z, u_load, t);
+i_v = lsim(G_z, v_load, t);
+i_w = lsim(G_z, w_load, t);
+
+% Verificación opcional:
+% La suma i_u + i_v + i_w debería ser ahora extremadamente cercana a cero (orden de 1e-15)
+sum_currents = i_u + i_v + i_w;
+plot(t, sum_currents); title('Suma de corrientes (Debe ser cero)');
 
 %% 4. Visualización de Resultados
 figure('Name', 'Corrientes Resultantes en Carga RL', 'Color', 'w');
