@@ -1329,478 +1329,6 @@
 			)
 			(embedded_fonts no)
 		)
-		(symbol "Filter:Choke_CommonMode_FerriteCore_1234"
-			(pin_names
-				(offset 0.254)
-				(hide yes)
-			)
-			(exclude_from_sim no)
-			(in_bom yes)
-			(on_board yes)
-			(property "Reference" "FL"
-				(at 0 4.445 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Value" "Choke_CommonMode_FerriteCore_1234"
-				(at 0 -4.445 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-				)
-			)
-			(property "Footprint" ""
-				(at 0 -6.35 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "Datasheet" "~"
-				(at 0 -8.255 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "Description" "Generic common-mode choke, ferrite core, 1234 pin order"
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(property "ki_keywords" "signal line filter"
-				(at 0 0 0)
-				(effects
-					(font
-						(size 1.27 1.27)
-					)
-					(hide yes)
-				)
-			)
-			(symbol "Choke_CommonMode_FerriteCore_1234_0_1"
-				(circle
-					(center -2.794 1.27)
-					(radius 0.254)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type outline)
-					)
-				)
-				(polyline
-					(pts
-						(xy -2.794 0.381) (xy -2.286 0.381)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy -2.794 -0.381) (xy -2.286 -0.381)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(circle
-					(center -2.794 -1.27)
-					(radius 0.254)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type outline)
-					)
-				)
-				(polyline
-					(pts
-						(xy -2.54 2.032) (xy -2.54 2.54)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy -2.54 -2.032) (xy -2.54 -2.54)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(arc
-					(start -1.524 2.032)
-					(mid -2.032 1.5262)
-					(end -2.54 2.032)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(arc
-					(start -2.54 -2.032)
-					(mid -2.032 -1.5262)
-					(end -1.524 -2.032)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy -1.778 0.381) (xy -1.27 0.381)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy -1.778 -0.381) (xy -1.27 -0.381)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(arc
-					(start -0.508 2.032)
-					(mid -1.016 1.5262)
-					(end -1.524 2.032)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(arc
-					(start -1.524 -2.032)
-					(mid -1.016 -1.5262)
-					(end -0.508 -2.032)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy -0.762 0.381) (xy -0.254 0.381)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy -0.762 -0.381) (xy -0.254 -0.381)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(arc
-					(start 0.508 2.032)
-					(mid 0 1.5262)
-					(end -0.508 2.032)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(arc
-					(start -0.508 -2.032)
-					(mid 0 -1.5262)
-					(end 0.508 -2.032)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy 0.254 0.381) (xy 0.762 0.381)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy 0.254 -0.381) (xy 0.762 -0.381)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(arc
-					(start 1.524 2.032)
-					(mid 1.016 1.5262)
-					(end 0.508 2.032)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(arc
-					(start 0.508 -2.032)
-					(mid 1.016 -1.5262)
-					(end 1.524 -2.032)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy 1.27 0.381) (xy 1.778 0.381)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy 1.27 -0.381) (xy 1.778 -0.381)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(arc
-					(start 2.54 2.032)
-					(mid 2.032 1.5262)
-					(end 1.524 2.032)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(arc
-					(start 1.524 -2.032)
-					(mid 2.032 -1.5262)
-					(end 2.54 -2.032)
-					(stroke
-						(width 0.254)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy 2.286 0.381) (xy 2.794 0.381)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy 2.286 -0.381) (xy 2.794 -0.381)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy 2.54 2.54) (xy 2.54 2.032)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-				(polyline
-					(pts
-						(xy 2.54 -2.032) (xy 2.54 -2.54)
-					)
-					(stroke
-						(width 0)
-						(type default)
-					)
-					(fill
-						(type none)
-					)
-				)
-			)
-			(symbol "Choke_CommonMode_FerriteCore_1234_1_1"
-				(pin passive line
-					(at -5.08 2.54 0)
-					(length 2.54)
-					(name "1"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "1"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at -5.08 -2.54 0)
-					(length 2.54)
-					(name "3"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "3"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 5.08 2.54 180)
-					(length 2.54)
-					(name "2"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "2"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-				(pin passive line
-					(at 5.08 -2.54 180)
-					(length 2.54)
-					(name "4"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-					(number "4"
-						(effects
-							(font
-								(size 1.27 1.27)
-							)
-						)
-					)
-				)
-			)
-			(embedded_fonts no)
-		)
 		(symbol "SamacSys_Parts:AMS1117-3.3"
 			(exclude_from_sim no)
 			(in_bom yes)
@@ -2924,16 +2452,6 @@
 	)
 	(wire
 		(pts
-			(xy 199.39 101.6) (xy 199.39 102.87)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "00b96e76-305c-4de1-9e1c-18c11a90c9fa")
-	)
-	(wire
-		(pts
 			(xy 63.5 149.86) (xy 63.5 152.4)
 		)
 		(stroke
@@ -2961,16 +2479,6 @@
 			(type default)
 		)
 		(uuid "04541d5e-a419-4bef-9915-d4e7d38eea98")
-	)
-	(wire
-		(pts
-			(xy 199.39 102.87) (xy 203.2 102.87)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "06082ba1-0524-4b22-8fb0-92fca340703e")
 	)
 	(wire
 		(pts
@@ -3011,16 +2519,6 @@
 			(type default)
 		)
 		(uuid "1050bbd4-e213-4632-9fff-20e1322904f9")
-	)
-	(wire
-		(pts
-			(xy 186.69 101.6) (xy 184.15 101.6)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "11de728e-f5a0-40b0-823a-5df68a7b738c")
 	)
 	(wire
 		(pts
@@ -3071,16 +2569,6 @@
 			(type default)
 		)
 		(uuid "1a380974-6d39-4a49-82e4-0ccbdd1c2b44")
-	)
-	(wire
-		(pts
-			(xy 196.85 96.52) (xy 199.39 96.52)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "1b289aca-646a-4449-a8a6-b9be3a3060b3")
 	)
 	(wire
 		(pts
@@ -3164,7 +2652,7 @@
 	)
 	(wire
 		(pts
-			(xy 184.15 102.87) (xy 181.61 102.87)
+			(xy 181.61 102.87) (xy 203.2 102.87)
 		)
 		(stroke
 			(width 0)
@@ -3211,16 +2699,6 @@
 			(type default)
 		)
 		(uuid "59c5469f-05d5-4de0-8667-d534817d972d")
-	)
-	(wire
-		(pts
-			(xy 199.39 95.25) (xy 203.2 95.25)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "5cb4640d-fb53-4544-b231-561c916d131c")
 	)
 	(wire
 		(pts
@@ -3324,16 +2802,6 @@
 	)
 	(wire
 		(pts
-			(xy 184.15 96.52) (xy 186.69 96.52)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "8516ca3e-8006-4ee3-80ee-de1cceabe841")
-	)
-	(wire
-		(pts
 			(xy 63.5 149.86) (xy 73.66 149.86)
 		)
 		(stroke
@@ -3384,16 +2852,6 @@
 	)
 	(wire
 		(pts
-			(xy 196.85 101.6) (xy 199.39 101.6)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "9a27a08a-2d32-4497-ac70-a81834076d8f")
-	)
-	(wire
-		(pts
 			(xy 120.65 125.73) (xy 120.65 121.92)
 		)
 		(stroke
@@ -3411,16 +2869,6 @@
 			(type default)
 		)
 		(uuid "a0fd696f-a47f-4074-ae34-edeaaaf7b8c0")
-	)
-	(wire
-		(pts
-			(xy 184.15 101.6) (xy 184.15 102.87)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "a11454a2-081a-4ea3-8daa-b6eee819cceb")
 	)
 	(wire
 		(pts
@@ -3464,26 +2912,6 @@
 	)
 	(wire
 		(pts
-			(xy 184.15 96.52) (xy 184.15 95.25)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "a78134c6-322a-4c7d-b5d1-659875d16858")
-	)
-	(wire
-		(pts
-			(xy 199.39 96.52) (xy 199.39 95.25)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "a89d210e-707a-4b7f-aa26-14016432199f")
-	)
-	(wire
-		(pts
 			(xy 80.01 58.42) (xy 67.31 58.42)
 		)
 		(stroke
@@ -3524,7 +2952,7 @@
 	)
 	(wire
 		(pts
-			(xy 184.15 95.25) (xy 181.61 95.25)
+			(xy 181.61 95.25) (xy 203.2 95.25)
 		)
 		(stroke
 			(width 0)
@@ -3771,16 +3199,6 @@
 			(justify right bottom)
 		)
 		(uuid "99e4c811-f703-4ee1-a85c-e14f38a743d3")
-	)
-	(label "INPUT_GND"
-		(at 173.99 102.87 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "a4ef1e0b-6d1f-4d8b-bbc6-29f99def2adf")
 	)
 	(label "XADC_VREF"
 		(at 200.66 46.99 0)
@@ -4148,7 +3566,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Capacitor_SMD:C_01005_0402Metric_Pad0.57x0.30mm_HandSolder"
+		(property "Footprint" "Capacitor_SMD:C_1206_3216Metric_Pad1.33x1.80mm_HandSolder"
 			(at 94.2848 148.59 0)
 			(effects
 				(font
@@ -4560,7 +3978,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Capacitor_SMD:C_01005_0402Metric_Pad0.57x0.30mm_HandSolder"
+		(property "Footprint" "Capacitor_SMD:C_1206_3216Metric_Pad1.33x1.80mm_HandSolder"
 			(at 72.6948 142.24 0)
 			(effects
 				(font
@@ -5101,7 +4519,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Capacitor_SMD:C_01005_0402Metric_Pad0.57x0.30mm_HandSolder"
+		(property "Footprint" "Capacitor_SMD:C_1206_3216Metric_Pad1.33x1.80mm_HandSolder"
 			(at 84.1248 127 0)
 			(effects
 				(font
@@ -6047,80 +5465,6 @@
 			(project "Corriente"
 				(path "/cf53253e-7788-4c16-b67b-c1a8de54435a"
 					(reference "#PWR05")
-					(unit 1)
-				)
-			)
-		)
-	)
-	(symbol
-		(lib_id "Filter:Choke_CommonMode_FerriteCore_1234")
-		(at 191.77 99.06 0)
-		(unit 1)
-		(exclude_from_sim no)
-		(in_bom yes)
-		(on_board yes)
-		(dnp no)
-		(uuid "b8ee9b42-7da5-4870-a062-35961a747d33")
-		(property "Reference" "FL1"
-			(at 191.77 94.488 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-			)
-		)
-		(property "Value" "Choke_CommonMode_FerriteCore_1234"
-			(at 191.643 93.98 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Footprint" "Inductor_THT:Choke_EPCOS_B82722A"
-			(at 191.77 105.41 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Datasheet" "~"
-			(at 191.77 107.315 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(property "Description" "Generic common-mode choke, ferrite core, 1234 pin order"
-			(at 191.77 99.06 0)
-			(effects
-				(font
-					(size 1.27 1.27)
-				)
-				(hide yes)
-			)
-		)
-		(pin "2"
-			(uuid "d497ca7e-26e2-4bfc-a48e-f47b9a3bcbf5")
-		)
-		(pin "1"
-			(uuid "b0b23020-452a-4831-9357-e80882501e96")
-		)
-		(pin "4"
-			(uuid "94223729-d581-4b16-bd96-3f9fdc9fe304")
-		)
-		(pin "3"
-			(uuid "87fe7e40-1c31-4417-8929-afaae8edd136")
-		)
-		(instances
-			(project "Corriente"
-				(path "/cf53253e-7788-4c16-b67b-c1a8de54435a"
-					(reference "FL1")
 					(unit 1)
 				)
 			)

@@ -2,7 +2,7 @@
 clear; clc; close all;
 
 % Parámetros de simulación (Coinciden con tu VHDL)
-filename = 'salida_svm_50Hz_100MHz.csv';
+filename = 'salida_100Hz_svm_Corregida.csv';
 Fs = 100e6;           % Frecuencia de muestreo: 5 MHz
 Ts = 1/Fs;          % Periodo de muestreo: 200 ns
 
@@ -62,7 +62,7 @@ grid on;
 xlabel('Tiempo [s]');
 ylabel('Amplitud [V]');
 title('Zoom Fase W (Detalle de Conmutación)');
-xlim([0 min(0.04, max(t))]); 
+xlim([0 max(t)]); 
 % Mostramos solo los primeros 40ms o el total si es menor
 
 %% Grafico 2: Análisis Espectral (FFT de Fase U)
@@ -116,14 +116,15 @@ w_load = w - v_neutro;
 
 % 3. Simular la corriente usando las tensiones corregidas
 % Ahora el sistema "ve" un neutro flotante y la suma de corrientes será 0.
-i_u = lsim(G_z, u_load, t);
-i_v = lsim(G_z, v_load, t);
-i_w = lsim(G_z, w_load, t);
+i_u = lsim(G_z, u, t);
+i_v = lsim(G_z, v, t);
+i_w = lsim(G_z, w, t);
 
 % Verificación opcional:
 % La suma i_u + i_v + i_w debería ser ahora extremadamente cercana a cero (orden de 1e-15)
 sum_currents = i_u + i_v + i_w;
 plot(t, sum_currents); title('Suma de corrientes (Debe ser cero)');
+
 
 %% 4. Visualización de Resultados
 figure('Name', 'Corrientes Resultantes en Carga RL', 'Color', 'w');

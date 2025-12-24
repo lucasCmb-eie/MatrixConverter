@@ -13,7 +13,7 @@ entity RL_fase is
     port (
         i_clk    : in  std_logic;
         i_rst    : in  std_logic;
-
+        
         i_c_a0 : in sfixed(INT_BITS-1 downto -FRAC_BITS);
         i_c_a1 : in sfixed(INT_BITS-1 downto -FRAC_BITS);
         i_c_b1 : in sfixed(INT_BITS-1 downto -FRAC_BITS);
@@ -34,10 +34,10 @@ architecture Behavioral of RL_fase is
 
 begin
     process(i_clk, i_rst)
-        variable term_a0_v_n   : sfixed(PROD_INT_BITS-1 downto -PROD_FRAC_BITS);
-        variable term_a1_v_n_1 : sfixed(PROD_INT_BITS-1 downto -PROD_FRAC_BITS);
-        variable term_b1_i_n_1 : sfixed(PROD_INT_BITS-1 downto -PROD_FRAC_BITS);
-        variable i_n_next      : sfixed(INT_BITS-1 downto -FRAC_BITS);
+        variable term_a0_v_n   : sfixed(PROD_INT_BITS-1 downto -PROD_FRAC_BITS) := (others => '0');
+        variable term_a1_v_n_1 : sfixed(PROD_INT_BITS-1 downto -PROD_FRAC_BITS) := (others => '0');
+        variable term_b1_i_n_1 : sfixed(PROD_INT_BITS-1 downto -PROD_FRAC_BITS) := (others => '0');
+        variable i_n_next      : sfixed(INT_BITS-1 downto -FRAC_BITS) := (others => '0');
     begin
         if (i_rst = '1') then
             U_z1 <= (others => '0');
@@ -45,6 +45,7 @@ begin
             I_n  <= (others => '0');
 
         elsif rising_edge(i_clk) then
+            
             -- Multiplicaciones usando variables
             term_a0_v_n   := i_c_a0 * i_U;
             term_a1_v_n_1 := i_c_a1 * U_z1;
@@ -56,7 +57,8 @@ begin
             -- Actualización de memorias
             I_n <= i_n_next;
             U_z1 <= i_U;
-            I_z1 <= i_n_next;
+            I_z1 <= i_n_next;     
+            
         end if;
     end process;
 

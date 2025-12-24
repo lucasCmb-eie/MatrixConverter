@@ -4,10 +4,13 @@ use IEEE.fixed_pkg.all;
 
 entity TransformadaClark is
 generic (
-        INT_BITS  : integer := 3;
-        FRAC_BITS : integer := 29
+        INT_BITS  : integer := 8;
+        FRAC_BITS : integer := 24
     );
 port (
+    i_clk : in std_logic;
+    i_rst : in std_logic;
+    i_enable : in std_logic;
     -- Entradas de tensiones trifasicas (U, V ,W)
     i_U : in std_logic_vector (31 downto 0);
     i_V : in std_logic_vector (31 downto 0);
@@ -27,18 +30,29 @@ architecture Behavioral of TransformadaClark is
     constant K_CLARK_C : sfixed(INT_BITS - 1 downto -FRAC_BITS) := to_sfixed(-0.81649658, INT_BITS - 1, -FRAC_BITS);    -- -sqrt(3)/2
 
     -- Señales internas para las componentes alfa y beta
-    signal w_alfa : sfixed(25 downto -72) := (others => '0');
-    signal w_beta : sfixed(24 downto -72) := (others => '0');
+    signal w_alfa: sfixed(INT_BITS*3 +1 downto -(FRAC_BITS*3)) := (others => '0');
+    signal w_beta : sfixed(INT_BITS*3 downto -(FRAC_BITS*3)) := (others => '0');
+    signal r_alfa : sfixed(INT_BITS - 1 downto -FRAC_BITS);
+    signal r_beta : sfixed(INT_BITS - 1 downto -FRAC_BITS);
 
     begin
-
-        process (i_U, i_V, i_W)
+        w_alfa <= K_CLARK_AMPL * (to_sfixed(i_U, INT_BITS - 1, -FRAC_BITS) + K_CLARK_A * to_sfixed(i_V, INT_BITS - 1, -FRAC_BITS) + K_CLARK_A * to_sfixed(i_W, INT_BITS - 1, -FRAC_BITS));
+        w_beta <= K_CLARK_AMPL * (K_CLARK_B * to_sfixed(i_V, INT_BITS - 1, -FRAC_BITS) + K_CLARK_C * to_sfixed(i_W, INT_BITS - 1, -FRAC_BITS));
+        
+        process (i_clk, i_rst)
         begin
-            w_alfa <= K_CLARK_AMPL * (to_sfixed(i_U, 7, -24) + K_CLARK_A * to_sfixed(i_V, 7, -24) + K_CLARK_A * to_sfixed(i_W, 7, -24));
-            w_beta <= K_CLARK_AMPL * (K_CLARK_B * to_sfixed(i_V, 7, -24) + K_CLARK_C * to_sfixed(i_W, 7, -24));
+            if i_rst = '1' then
+                r_alfa <= (others => '0');
+                r_beta <= (others => '0');
+            elsif rising_edge(i_clk) then
+                if i_enable = '1' then
+                    r_alfa <= resize(w_alfa, INT_BITS - 1, -FRAC_BITS);
+                    r_beta <= resize(w_beta, INT_BITS - 1, -FRAC_BITS);
+                end if;
+            end if;
         end process;
 
         -- Asignación de las salidas
-        o_alfa <= to_slv(resize(w_alfa, 7, -24));
-        o_beta <= to_slv(resize(w_beta, 7, -24));
+        o_alfa <= to_slv(r_alfa);
+        o_beta <= to_slv(r_beta);
     end Behavioral;
