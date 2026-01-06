@@ -46,7 +46,7 @@ set files [list \
   [file normalize "${origin_dir}/HW/src/hdl/Modulador.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/AC_Source.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/matrixConmut.vhd"] \
-  [file normalize "${origin_dir}/HW/src/hdl/RL.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/RL_fase.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/TransformadaClark.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/PhaseSawGen.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/util/red_sector.vhd"] \
@@ -54,7 +54,6 @@ set files [list \
   [file normalize "${origin_dir}/HW/src/hdl/util/sine_lut_pkg.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/util/Declaraciones.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/util/DienteSierraGen.vhd"] \
-  [file normalize "${origin_dir}/HW/src/hdl/util/EnableGen.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/wrappers/AC_Source_wrapper.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/wrappers/RL_wrapper.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/wrappers/SVM_wrapper.vhd"] \
@@ -81,8 +80,10 @@ if {[string equal [get_filesets -quiet constrs_1] ""]} {
 
 # Set 'constrs_1' fileset object
 set obj [get_filesets constrs_1]
-
-# # Empty (no sources present)
+set files [list \
+ [file normalize "${origin_dir}/HW/src/constrs/timing.xdc"] \
+]
+add_files -norecurse -fileset $obj $files
 
 # Set 'constrs_1' fileset properties
 set obj [get_filesets constrs_1]
@@ -98,6 +99,8 @@ set files [list \
  [file normalize "${origin_dir}/HW/src/tb/tb_TransformadaClark.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_DienteSierraGen.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_PhaseSawGen.vhd"] \
+ [file normalize "${origin_dir}/HW/src/tb/tb_testSistemaLA.vhd"] \
+ [file normalize "${origin_dir}/HW/src/tb/tb_SVM_Wrapper.vhd"] \
 ]
 add_files -norecurse -fileset $obj $files
 
@@ -137,7 +140,7 @@ current_run -implementation [get_runs impl_1]
 puts "INFO: Project created:${_xil_proj_name_}"
 
 # Create block design
- source $origin_dir/HW/src/bd/test_SistemaLA.tcl
+ source $origin_dir/HW/src/bd/design_SVM_PS.tcl
 
  # Generate the wrapper
  set design_name [get_bd_designs]

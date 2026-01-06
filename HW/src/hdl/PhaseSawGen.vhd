@@ -5,30 +5,32 @@ use ieee.fixed_pkg.all;
 
 entity PhaseSawGen is
     generic (
-        G_CLK_FREQ : real := 1.0e8;  -- frecuencia de reloj (Hz)
-        G_F_SINE   : real := 50.0;    -- frecuencia de la senoide (Hz)
-        INT_BITS    : integer := 3;
-        FRAC_BITS   : integer := 29
+        G_CLK_FREQ  : real := 1.0e8; -- Frecuencia de reloj (Hz)
+        G_SAW_FREQ  : real := 50.0;  -- Frecuencia DESEADA de la diente de sierra (Hz)
+        INT_BITS    : integer := 8;
+        FRAC_BITS   : integer := 24
     );
     port (
-        i_clk    : in  std_logic;
-        i_rst    : in  std_logic;
-        i_sin    : in  sfixed(INT_BITS - 1 downto -FRAC_BITS);
-        o_angle  : out std_logic_vector(10 downto 0)
+        i_clk       : in  std_logic;
+        i_rst       : in  std_logic;
+        -- i_sin se mantiene por compatibilidad con tu testbench, 
+        -- pero internamente es ignorada para la generación.
+        i_sin       : in  sfixed(INT_BITS - 1 downto -FRAC_BITS);
+        o_angle     : out std_logic_vector(10 downto 0)
     );
 end entity;
 
-architecture rtl of PhaseSawGen is
-    constant C_PHASE_BITS   : integer := 11;
-    constant C_PHASE_MAX    : integer := 2**C_PHASE_BITS;
-    constant C_PERIOD_TICKS : integer := integer(G_CLK_FREQ / G_F_SINE);
-
-    -- incremento de fase por tick
-    constant C_DELTA : real := real(C_PHASE_MAX) / real(C_PERIOD_TICKS);
+architecture sim of PhaseSawGen is
+    constant C_PHASE_BITS : integer := 11;
+    -- Usamos real para mantener la precisión en simulación
+    constant C_PHASE_MAX  : real    := 2.0**C_PHASE_BITS;
+    
+    -- Calculamos el paso exacto basado en los generics
+    -- Delta = (Max_Cuentas * Frec_Objetivo) / Frec_Reloj
+    constant C_DELTA      : real    := (C_PHASE_MAX * G_SAW_FREQ) / G_CLK_FREQ;
 
     signal phase_acc  : unsigned(C_PHASE_BITS-1 downto 0) := (others => '0');
-    signal sin_d      : sfixed(INT_BITS - 1 downto -FRAC_BITS);
-    signal zero_cross : std_logic := '0';
+
 begin
 
     process(i_clk, i_rst)
@@ -36,32 +38,22 @@ begin
     begin
         if i_rst = '1' then
             phase_acc  <= (others => '0');
-            sin_d      <= to_sfixed(0.0, INT_BITS - 1, -FRAC_BITS);
-            zero_cross <= '0';
             phase_real := 0.0;
         elsif rising_edge(i_clk) then
-            sin_d <= i_sin;
+            
+            -- Acumulador simple (Integrador)
+            phase_real := phase_real + C_DELTA;
 
-            -- Detecta cruce por cero ascendente
-            if (sin_d < 0.0) and (i_sin >= 0.0) then
-                zero_cross <= '1';
-            else
-                zero_cross <= '0';
+            -- Manejo de desbordamiento (Wrap around)
+            -- Al llegar al máximo, restamos el máximo para volver a empezar
+            -- manteniendo el remanente decimal para precisión perfecta.
+            if phase_real >= C_PHASE_MAX then
+                phase_real := phase_real - C_PHASE_MAX;
             end if;
 
-            if zero_cross = '1' then
-                phase_acc  <= (others => '0');
-                phase_real := 0.0;
-            else
-                -- incremento de fase
-                phase_real := phase_real + C_DELTA;
-
-                if phase_real >= real(C_PHASE_MAX) then
-                    phase_real := phase_real - real(C_PHASE_MAX);
-                end if;
-
-                phase_acc <= to_unsigned(integer(phase_real), C_PHASE_BITS);
-            end if;
+            -- Conversión a salida
+            phase_acc <= to_unsigned(integer(phase_real), C_PHASE_BITS);
+            
         end if;
     end process;
 

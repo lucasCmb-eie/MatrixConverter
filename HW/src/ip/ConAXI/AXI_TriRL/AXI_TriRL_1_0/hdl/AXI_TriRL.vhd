@@ -12,6 +12,7 @@ entity AXI_TriRL is
 
 		-- Reset asíncrono activo a nivel bajo
 		i_rst  : in  std_logic; 
+		i_clk : in std_logic;
 
 		-- Tensiones de la carga RL 
 		i_U : in std_logic_vector(31 downto 0);
@@ -23,9 +24,10 @@ entity AXI_TriRL is
 		o_Iv : out std_logic_vector(31 downto 0);
 		o_Iw : out std_logic_vector(31 downto 0);
 
-		axi_aclk : in std_logic;
+		
 
 		-- Ports of Axi Slave Bus Interface S0_AXI_PARAMETROS
+		s0_axi_parametros_aclk 	: in std_logic;
 		s0_axi_parametros_aresetn	: in std_logic;
 		s0_axi_parametros_awaddr	: in std_logic_vector(C_S0_AXI_PARAMETROS_ADDR_WIDTH-1 downto 0);
 		s0_axi_parametros_awprot	: in std_logic_vector(2 downto 0);
@@ -132,7 +134,7 @@ AXI_TriRL_slave_lite_v1_0_S0_AXI_PARAMETROS_inst : AXI_TriRL_slave_lite_v1_0_S0_
 		COEF_a0 	=> w_c_a0,
 		COEF_a1 	=> w_c_a1,
 		COEF_b0 	=> w_c_b1,
-		S_AXI_ACLK	=> axi_aclk,
+		S_AXI_ACLK	=> s0_axi_parametros_aclk,
 		S_AXI_ARESETN	=> s0_axi_parametros_aresetn,
 		S_AXI_AWADDR	=> s0_axi_parametros_awaddr,
 		S_AXI_AWPROT	=> s0_axi_parametros_awprot,
@@ -162,7 +164,7 @@ AXI_TriRL_inst : RL_wrapper
 		FRAC_BITS   => 24
 	)
 	port map (
-		i_clk     => axi_aclk,
+		i_clk     => i_clk,
 		i_rst     => i_rst,
 		i_c_a0    => w_c_a0,
 		i_c_a1    => w_c_a1,

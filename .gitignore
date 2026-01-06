@@ -3,3 +3,4 @@
 HW/src/tb/util/output.txt
 HW/src/ip/AXI_Modulador/vivado.jou
 HW/src/ip/AXI_Modulador/vivado.log
+*.csv
