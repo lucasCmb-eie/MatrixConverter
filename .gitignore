@@ -4,3 +4,56 @@ HW/src/tb/util/output.txt
 HW/src/ip/AXI_Modulador/vivado.jou
 HW/src/ip/AXI_Modulador/vivado.log
 *.csv
+bd/*
+# Ignore de Vitis
+#Build Results
+SW/workspaceVitis/*.o
+SW/workspaceVitis/*.elf
+SW/workspaceVitis/*.d
+SW/workspaceVitis/*.del
+SW/workspaceVitis/export/
+
+
+#Workspace files
+SW/workspaceVitis/.analytics
+SW/workspaceVitis/.metadata
+SW/workspaceVitis/RemoteSystemsTempFiles/
+SW/workspaceVitis/**/_ide/*
+
+SW/workspaceVitis/platf_SVM/build
+
+#Generated BSP files
+SW/workspaceVitis/**/*bsp/ps7_cortexa9_*
+SW/workspaceVitis/**/*bsp/psu_cortexa53_*
+SW/workspaceVitis/**/*bsp/psu_cortexr5_*
+SW/workspaceVitis/**/*bsp/psu_pmu_*
+
+#BSP Export (listed contents separately because "export" is a common name)
+*/export/
+
+Makefile
+SW/workspaceVitis/*.mk
+
+#log files
+SW/workspaceVitis/*.log
+/SW/workspaceVitis/platf_SVM/ps7_cortexa9_0
+/SW/workspaceVitis/platf_SVM/zynq_fsbl
+/SW/workspaceVitis/platf_SVM/hw
+/SW/workspaceVitis/Control_SVM/src/.cache
+/SW/workspaceVitis/platf_SVM/resources
+/SW/workspaceVitis/Control_SVM/build/CMakeFiles
+/SW/workspaceVitis/Control_SVM/build
+SW/workspaceVitis/Control_SVM/compile_commands.json
+SW/workspaceVitis/Control_SVM/src/app.yaml
+SW/workspaceVitis/Control_SVM/src/CMakeLists.txt
+SW/workspaceVitis/Control_SVM/src/compile_commands.json
+SW/workspaceVitis/Control_SVM/src/Hello_worldExample.cmake
+SW/workspaceVitis/Control_SVM/src/lscript.ld
+SW/workspaceVitis/Control_SVM/src/platform.c
+SW/workspaceVitis/Control_SVM/src/platform.h
+SW/workspaceVitis/Control_SVM/vitis-comp.json
+SW/workspaceVitis/platf_SVM/vitis-comp.json
+SW/workspaceVitis/Control_SVM/src/.clangd
+dfx_runtime.txt
+HW/src/bd/design_SVM_PS.pdf
+/Medicion_Trifasica/Tension/Tension-backups

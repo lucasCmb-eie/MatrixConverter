@@ -32,7 +32,7 @@ architecture ncoLUT_tb_arch of ncoLUT_tb is
 begin
 
 --NCO
-nco: entity work.AC_SourceV2
+nco: entity work.AC_Source
     port map(
         i_clk => test_clk_in,
         i_rst => test_rst_in,

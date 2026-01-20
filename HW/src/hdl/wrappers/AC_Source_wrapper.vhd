@@ -1,7 +1,6 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 
-use work.declaraciones.all;
 use work.sine_lut_pkg.all;
 
 entity AC_Source_wrapper is
@@ -16,9 +15,6 @@ entity AC_Source_wrapper is
 end AC_Source_wrapper;
 
 architecture Behavioral of AC_Source_wrapper is
-    
-    signal w_triV : vector(1 to 3)(31 downto 0);
-
 begin
 
     triV_core : entity work.AC_Source
@@ -26,12 +22,8 @@ begin
             i_clk => i_clk,
             i_rst => i_rst,
             
-            o_triV => w_triV
+            o_U => o_U,
+            o_V => o_V,            
+            o_W => o_W
         );
-
-    -- Mapeo de salidas a puertos
-    o_U <= w_triV(1);
-    o_V <= w_triV(2);
-    o_W <= w_triV(3);
-
 end Behavioral;
