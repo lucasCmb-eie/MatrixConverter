@@ -5,10 +5,10 @@ use ieee.fixed_pkg.all;
 library std;
 use std.textio.all;
 
-entity tb_SVM_Wrapper is
-end tb_SVM_Wrapper;
+entity tb_SVM_Wrapper_Roto is
+end tb_SVM_Wrapper_Roto;
 
-architecture Behavioral of tb_SVM_Wrapper is
+architecture Behavioral of tb_SVM_Wrapper_Roto is
     
     constant PER2 : time := (10 ns /2); -- Se busca 100MHz
     constant CLK_FREQ : real := 1.0e8;
@@ -54,7 +54,7 @@ architecture Behavioral of tb_SVM_Wrapper is
     signal w_ClarkValido : std_logic;
 begin
     
-    modulador_core : entity work.SVM_wrapper
+    modulador_core : entity work.SVM_wrapper_Roto
         port map(
             i_clk    => clk, 
             i_enable => enable_SVM,

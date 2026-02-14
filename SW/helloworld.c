@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <xgpio_l.h>
 #include <xstatus.h>
 #include <stdbool.h>
 #include <math.h>
@@ -35,26 +36,31 @@
 //Constantes para comunicacionAXI
 #define INTC_DEVICE_BaseAddr          XPAR_INTC_BASEADDR
 
-#define UART_MEDICIONES               XPAR_UART1_BASEADDR
-#define GPIO_ENABLE_MUESTREO          XPAR_AXI_GPIO_ENABLEMUESTREO_BASEADDR
-#define GPIO_RST                      XPAR_AXI_GPIO_RST_BASEADDR
-#define GPIO_ENABLE_SVM               XPAR_AXI_GPIO_ENABLESVM_BASEADDR
+#define UART_MEDICIONES_ADRR          XPAR_UART1_BASEADDR
+#define GPIO_CONTROLES_ADDR           XPAR_XGPIO_0_BASEADDR
+#define GPIO_SVM                      1
 
 #define PL_INTERRUPT_ID               61 //Sale del Technical manual del Zynq7000 - IRQ_F2P[0:0]
 
-#define AXI_TensionesEntrada          XPAR_AXI_PROMEDIADOR_0_BASEADDR
-#define AXI_CorrientesCarga           XPAR_AXI_PROMEDIADOR_CORRIENTESRL_BASEADDR
-#define AXI_ParamsSVM                 XPAR_AXI_SVM_0_BASEADDR
-#define AXI_ParamsRL                  XPAR_AXI_TRIRL_0_BASEADDR
+#define AXI_TENSIONES_ENT          0x43c30000
+#define AXI_CORRIENTES             0x43c10000
+#define AXI_PARAMETROS_SVM         XPAR_AXI_SVM_V2_0_BASEADDR //
+#define AXI_COEFICIENTES_RL        XPAR_AXI_RL_BASEADDR
 
-#define REG_FaseU            0   // slv_reg0
-#define REG_FaseV            4   // slv_reg1
-#define REG_FaseW            8   // slv_reg2
+#define SVM_ALFA_O    0x00
+#define SVM_BETA_I    0x04
+#define SVM_Q_I     0x08
+#define SVM_PHI_I   0x0C
+#define SVM_FASE_U  0x10
+#define SVM_FASE_V  0x14
+#define SVM_FASE_W  0x18
 
-#define REG_ALFAO            0
-#define REG_BETAI            4
-#define REG_QI               8
-#define REG_PHII             12
+#define RL_COEF_a0  0x00
+#define RL_COEF_a1  0x04
+#define RL_COEF_b0  0x08
+#define RL_CORR_U   0x0C
+#define RL_CORR_V   0x10
+#define RL_CORR_W   0x14
 
 //Constantes matematicas
 
@@ -83,6 +89,12 @@ typedef union
     u8    b[4];
 } FloatUnion;
 
+typedef union 
+{
+    int32_t i;
+    u8    b[4];
+} Int32Union;
+
 typedef struct 
 {
     int32_t faseU;
@@ -107,9 +119,10 @@ typedef struct
 } SistemaSVM;
 
 //GPIOS de control en el PL
-XGpio EnableMuestreo;
-XGpio EnableSVM;
-XGpio RstACSource;
+XGpio ControlesPL;
+//SVM Canal 1 -- 1 -> Esta prendido
+//Fuente AC y la RL Canal 2 -- 0 -> Esta prendido
+
 
 //Controlador de Interrupciones 
 XScuGic IntcInstance;
@@ -126,7 +139,6 @@ void ISR_Handler(void *CallbackRef);
 void Send_Trifasica_A_PC(SistemaSVM *medicion);
 void CalculoTClark(MedicionTrifasica *medicion);
 void LeerSignalsPL(SistemaSVM *sistema);
-void InitPL();
 uint32_t Cordic_Atan2_Fixed(int32_t x, int32_t y);
 
 static inline float q8_24_to_float(int32_t q)
@@ -147,6 +159,8 @@ static const int32_t cordic_atan_table[14] = {
     0x00028BE6, 0x000145F3
 };
 
+MedicionTrifasica test;
+
 int main()
 {
     int Status;
@@ -161,26 +175,27 @@ int main()
 
     #pragma region GPIO
         //Inicializacion de GPIO
-        Status = XGpio_Initialize(&EnableMuestreo, GPIO_ENABLE_MUESTREO);
+        Status = XGpio_Initialize(&ControlesPL, GPIO_CONTROLES_ADDR);
         if (Status != XST_SUCCESS) xil_printf("Fallo GPIO MUESTREO\n\r");
-        XGpio_SetDataDirection(&EnableMuestreo, 1, 0x00); // Canal 1 como Salida
-
-        Status = XGpio_Initialize(&EnableSVM, GPIO_ENABLE_SVM);
-        if (Status != XST_SUCCESS) xil_printf("Fallo GPIO ENABLE SVM\n\r");
-        XGpio_SetDataDirection(&EnableSVM, 1, 0x00);
-
-        Status = XGpio_Initialize(&RstACSource, GPIO_RST);
-        if (Status != XST_SUCCESS) xil_printf("Fallo GPIO RST SVM\n\r");
-        XGpio_SetDataDirection(&RstACSource, 1, 0x00);
+        XGpio_SetDataDirection(&ControlesPL, GPIO_SVM, 0x00); // Canal 1 como Salida
     #pragma endregion
 
     #pragma region UART
         //Inicializacion de PS UART - Para enviar valores muestreados
-        ConfigUartMediciones = XUartPs_LookupConfig(UART_MEDICIONES);
+        ConfigUartMediciones = XUartPs_LookupConfig(UART_MEDICIONES_ADRR);
         Status = XUartPs_CfgInitialize(&UartPcInst, ConfigUartMediciones, ConfigUartMediciones -> BaseAddress);
         if (Status != XST_SUCCESS) xil_printf("Fallo config UART Mediciones\n\r");
+        
+        // Deshabilita todas las interrupciones del UART para evitar saltos inesperados
+        XUartPs_SetInterruptMask(&UartPcInst, 0);
+
+        // Limpia las banderas de estado pendientes
+        XUartPs_WriteReg(UartPcInst.Config.BaseAddress, XUARTPS_ISR_OFFSET, XUARTPS_IXR_MASK);
+        
         XUartPs_SetBaudRate(&UartPcInst, BAUD_RATE_PC);
         XUartPs_SetOperMode(&UartPcInst, XUARTPS_OPER_MODE_NORMAL);
+
+        
     #pragma endregion UART
 
     #pragma region PL -> PS Interrupt
@@ -189,7 +204,7 @@ int main()
     Status = XScuGic_CfgInitialize(&IntcInstance, ConfigIntc, ConfigIntc -> CpuBaseAddress);
     if (Status != XST_SUCCESS) xil_printf("Fallo config Interrupciones PL\n\r");
     
-    XScuGic_SetPriorityTriggerType(&IntcInstance, PL_INTERRUPT_ID, 0x00, XGPIOPS_IRQ_TYPE_LEVEL_HIGH);
+    XScuGic_SetPriorityTriggerType(&IntcInstance, PL_INTERRUPT_ID, 0xA0, 0x3);
 
     //Conectar Interrupciones al GIC
     Xil_ExceptionInit();
@@ -212,36 +227,47 @@ int main()
     #pragma endregion
 
     //InitPL();
+    XGpio_DiscreteWrite(&ControlesPL, GPIO_SVM, 0x00);
     
     xil_printf("Sistema iniciado, comenzando enviode datos\n\r");
     
-    //Activar Muestreo
-    Xil_Out32(GPIO_RST, 0xffff);
-    Xil_Out32(GPIO_ENABLE_MUESTREO, 0xffff);
-
     //Activar SVM
-    Xil_Out32(GPIO_ENABLE_SVM, false);
+    //XGpio_DiscreteWrite(&ControlesPL, GPIO_SVM, 0x01); // Al poner 1 se enciende el SVM
+
+    // //Por el momento ponemos a Qi y Phi con los valores
+    // Xil_Out32(AXI_PARAMETROS_SVM + SVM_PHI_I, 0x00);
+    // Xil_Out32(AXI_PARAMETROS_SVM + SVM_Q_I, 0b000100000);
 
     while (true) 
     {
-        // El bucle principal solo actúa si la interrupción levantó la bandera
+        int32_t test_U, test_V, test_W;
+
+        test_U = Xil_In32(AXI_TENSIONES_ENT + SVM_FASE_U);
+        test_V = Xil_In32(AXI_TENSIONES_ENT + SVM_FASE_V);
+        test_W = Xil_In32(AXI_TENSIONES_ENT + SVM_FASE_W); 
+
+        contador++;
         if (leerDato_Flag) 
         {
-            //Lectura de valores
-            LeerSignalsPL(&sistemaPL);
-            
-            //Transformada de Clark + arctang2
-            CalculoTClark(&(sistemaPL.TensionesEntrada));
-            CalculoTClark(&(sistemaPL.CorrientesCargas));
-            
-            //Cálculo de ángulo usando CORDIC
-            // CORDIC devuelve valor 0-2047 directamente
-            sistemaPL.alfaOSVM = Cordic_Atan2_Fixed(sistemaPL.CorrientesCargas.alphaClark, sistemaPL.CorrientesCargas.betaClark);
-            sistemaPL.betaISVM = Cordic_Atan2_Fixed(sistemaPL.TensionesEntrada.alphaClark, sistemaPL.TensionesEntrada.betaClark);
+            leerDato_Flag = false;
+               
 
-            // 4. Escribir al PL
-            Xil_Out32(AXI_ParamsSVM + REG_ALFAO, sistemaPL.alfaOSVM);
-            Xil_Out32(AXI_ParamsSVM + REG_BETAI, sistemaPL.betaISVM);
+            
+            //Lectura de valores
+            //LeerSignalsPL(&sistemaPL);
+            
+            // //Transformada de Clark + arctang2
+            // CalculoTClark(&(sistemaPL.TensionesEntrada));
+            // CalculoTClark(&(sistemaPL.TensionesEntrada));
+            
+            // //Cálculo de ángulo usando CORDIC
+            // // CORDIC devuelve valor 0-2047 directamente
+            // sistemaPL.alfaOSVM = Cordic_Atan2_Fixed(sistemaPL.CorrientesCargas.alphaClark, sistemaPL.CorrientesCargas.betaClark);
+            // sistemaPL.betaISVM = Cordic_Atan2_Fixed(sistemaPL.TensionesEntrada.alphaClark, sistemaPL.TensionesEntrada.betaClark);
+
+            // // 4. Escribir al PL
+            // Xil_Out32(AXI_PARAMETROS_SVM + SVM_ALFA, sistemaPL.alfaOSVM);
+            // Xil_Out32(AXI_PARAMETROS_SVM + SVM_BETA, sistemaPL.betaISVM);
 
             contador++;
             if(contador >= 20) // Envio datos cada 20 ciclos
@@ -251,8 +277,6 @@ int main()
                 //Reinicio de contadores
                 contador = 0;   
             }
-
-            leerDato_Flag = false;
         }
     }
     
@@ -268,56 +292,49 @@ void ISR_Handler(void *CallbackRef)
 
 void Send_Trifasica_A_PC(SistemaSVM *sistema)
 {
+    // Int32Union floatU, floatV, floatW;
     FloatUnion floatU, floatV, floatW;
+    // // Conversión "perezosa" (Lazy conversion): Solo convertimos cuando vamos a enviar
+    floatU.f = q8_24_to_float(sistema->CorrientesCargas.faseU);
+    floatV.f = q8_24_to_float(sistema->CorrientesCargas.faseV);
+    floatW.f = q8_24_to_float(sistema->CorrientesCargas.faseW);
     
-    // Conversión "perezosa" (Lazy conversion): Solo convertimos cuando vamos a enviar
-    floatU.f = q8_24_to_float(sistema->TensionesEntrada.faseU);
-    floatV.f = q8_24_to_float(sistema->TensionesEntrada.faseV);
-    floatW.f = q8_24_to_float(sistema->TensionesEntrada.faseW);
+    xil_printf("Fase U:\n");
+    printf("%f", floatU.f);
+    xil_printf("Fase V:\n");
+    printf("%f", floatV.f);
+    xil_printf("Fase W:\n");
+    printf("%f", floatW.f);
+    // SendBuffer[0] = 0xAA;
+    // SendBuffer[1] = 0xBB;
 
-    SendBuffer[0] = 0xAA;
-    SendBuffer[1] = 0xBB;
+    // SendBuffer[2] = floatU.b[0];
+    // SendBuffer[3] = floatU.b[1]; 
+    // SendBuffer[4] = floatU.b[2];
+    // SendBuffer[5] = floatU.b[3];
 
-    SendBuffer[2] = floatU.b[0]; SendBuffer[3] = floatU.b[1]; 
-    SendBuffer[4] = floatU.b[2]; SendBuffer[5] = floatU.b[3];
+    // SendBuffer[6] = floatV.b[0]; SendBuffer[7] = floatV.b[1]; 
+    // SendBuffer[8] = floatV.b[2]; SendBuffer[9] = floatV.b[3];
 
-    SendBuffer[6] = floatV.b[0]; SendBuffer[7] = floatV.b[1]; 
-    SendBuffer[8] = floatV.b[2]; SendBuffer[9] = floatV.b[3];
+    // SendBuffer[10] = floatW.b[0]; SendBuffer[11] = floatW.b[1]; 
+    // SendBuffer[12] = floatW.b[2]; SendBuffer[13] = floatW.b[3];
 
-    SendBuffer[10] = floatW.b[0]; SendBuffer[11] = floatW.b[1]; 
-    SendBuffer[12] = floatW.b[2]; SendBuffer[13] = floatW.b[3];
-
-    XUartPs_Send(&UartPcInst, SendBuffer, 14);
-    // u8 BigBuffer[26];
-    // u8 *ptr = BigBuffer; // Puntero móvil para escribir en el buffer
-
-    // // 1. Cabecera (Sync)
-    // *ptr++ = 0xAA;
-    // *ptr++ = 0xBB;
-
-    // // Tensiones (Casting directo de int32_t a memoria)
-    // *(int32_t*)ptr = sistema->TensionesEntrada.faseU; ptr += 4;
-    // *(int32_t*)ptr = sistema->TensionesEntrada.faseV; ptr += 4;
-    // *(int32_t*)ptr = sistema->TensionesEntrada.faseW; ptr += 4;
-
-    // // Corrientes
-    // *(int32_t*)ptr = sistema->CorrientesCargas.faseU; ptr += 4;
-    // *(int32_t*)ptr = sistema->CorrientesCargas.faseV; ptr += 4;
-    // *(int32_t*)ptr = sistema->CorrientesCargas.faseW; ptr += 4;
-
-    // // Enviar todo de una vez
-    // XUartPs_Send(&UartPcInst, BigBuffer, 26);
+    // XUartPs_Send(&UartPcInst, SendBuffer, 6);
 }
 
 void LeerSignalsPL(SistemaSVM *sistema)
 {
-    sistema->TensionesEntrada.faseU = Xil_In32(AXI_TensionesEntrada + REG_FaseU);
-    sistema->TensionesEntrada.faseV = Xil_In32(AXI_TensionesEntrada + REG_FaseV);
-    sistema->TensionesEntrada.faseW = Xil_In32(AXI_TensionesEntrada + REG_FaseW);
+    sistema->TensionesEntrada.faseU = Xil_In32(AXI_TENSIONES_ENT + SVM_FASE_U);
+    sistema->TensionesEntrada.faseV = Xil_In32(AXI_TENSIONES_ENT + SVM_FASE_V);
+    sistema->TensionesEntrada.faseW = Xil_In32(AXI_TENSIONES_ENT + SVM_FASE_W);
 
-    sistema->CorrientesCargas.faseU = Xil_In32(AXI_CorrientesCarga + REG_FaseU);
-    sistema->CorrientesCargas.faseV = Xil_In32(AXI_CorrientesCarga + REG_FaseV);
-    sistema->CorrientesCargas.faseW = Xil_In32(AXI_CorrientesCarga + REG_FaseW);
+    test.faseU = Xil_In32(AXI_TENSIONES_ENT + SVM_FASE_U);
+    test.faseV = Xil_In32(AXI_TENSIONES_ENT + SVM_FASE_V);
+    test.faseW = Xil_In32(AXI_TENSIONES_ENT + SVM_FASE_W); 
+
+    // sistema->CorrientesCargas.faseU = Xil_In32(AXI_CORRIENTES + REG_FaseU);
+    // sistema->CorrientesCargas.faseV = Xil_In32(AXI_CORRIENTES + REG_FaseV);
+    // sistema->CorrientesCargas.faseW = Xil_In32(AXI_CORRIENTES + REG_FaseW);
     
 }
 
@@ -341,13 +358,6 @@ void CalculoTClark(MedicionTrifasica *medicion)
     // Formula: 1/sqrt(3) * (V - W)
     accum = (int64_t)medicion->faseV - medicion->faseW;
     medicion->betaClark  = (int32_t)((accum * INV_SQRT3_Q24) >> 24);
-}
-
-void InitPL()
-{
-    Xil_Out32(GPIO_ENABLE_MUESTREO, false);
-    Xil_Out32(GPIO_ENABLE_SVM, false);
-    Xil_Out32(GPIO_RST, true);
 }
 
 /**************** ALGORITMO CORDIC (Fixed Point) ****************/

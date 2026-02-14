@@ -10,9 +10,7 @@ entity SVM_wrapper is
         i_q_i    : in std_logic_vector(8 downto 0);  --! Voltage Transfer Ratio
         i_phi_i  : in std_logic_vector(10 downto 0); --! Desfasaje entre corriente de salida y tension de entrada a la matriz
 
-        o_fin_ciclo    : out std_logic;                    
-        o_inicio_ciclo : out std_logic;                    
-        o_fin_calc_ts  : out std_logic;
+        o_trg_calculo    : out std_logic;
 
         --Tensiones 
         i_U : in std_logic_vector(31 downto 0);
@@ -28,7 +26,10 @@ end SVM_wrapper;
 architecture Behavioral of SVM_wrapper is
 
     signal w_direcciones : std_logic_vector(17 downto 0); --Coeficientes de la matriz de conmutacion
-    
+    signal fin_calc_ts : std_logic; 
+    signal fin_calc_ts_prev : std_logic;
+    signal fin_calc_ts_falling : std_logic;
+
 begin
 
     modulador_core : entity work.modulador
@@ -39,9 +40,9 @@ begin
             i_be_i         => i_be_i,
             i_q_i          => i_q_i,
             i_phi_i        => i_phi_i, 
-            o_fin_ciclo    => o_fin_ciclo,
-            o_inicio_ciclo => o_inicio_ciclo,
-            o_fin_calc_ts  => o_fin_calc_ts,
+            o_fin_ciclo    => open,
+            o_inicio_ciclo => open,
+            o_fin_calc_ts  => fin_calc_ts,
             o_direcciones  => w_direcciones
         );
 
@@ -58,4 +59,16 @@ begin
             o_W => o_W
         );
 
+    EDGE_DETECTOR_PROC : process(i_clk)
+        begin
+            if rising_edge(i_clk) then
+
+                fin_calc_ts_prev <= fin_calc_ts;
+                fin_calc_ts_falling <=  (NOT fin_calc_ts) AND (fin_calc_ts_prev);
+
+            end if;
+        end process;
+
+    o_trg_calculo <= fin_calc_ts_falling;
+    
 end Behavioral;

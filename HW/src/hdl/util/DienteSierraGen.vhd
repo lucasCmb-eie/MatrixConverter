@@ -6,9 +6,9 @@ use ieee.fixed_pkg.all;
 entity DienteSierraGen is
     port (
         i_clk     : in  std_logic;
-        i_rst   : in  std_logic;
+        i_rst     : in  std_logic;
         i_k       : in  unsigned(11 downto 0); -- factor K (1..2000 aprox)
-        o_saw     : out sfixed(7 downto -24)   -- salida Q8.24
+        o_saw     : out std_logic_vector(31 downto 0)   -- salida Q8.24
     );
 end entity;
 
@@ -42,6 +42,6 @@ begin
         end if;
     end process;
 
-    o_saw <= r_acc;
+    o_saw <= to_slv(r_acc);
 
 end architecture;

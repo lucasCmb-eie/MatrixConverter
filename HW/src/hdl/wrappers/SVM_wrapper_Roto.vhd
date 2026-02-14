@@ -1,7 +1,7 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 
-entity SVM_wrapper is
+entity SVM_wrapper_Roto is
     port (
         i_clk    : in std_logic; --! Reloj de sistema
         i_enable : in std_logic; --! Habilitacion del modulador
@@ -21,9 +21,9 @@ entity SVM_wrapper is
         o_V : out std_logic_vector(31 downto 0);
         o_W : out std_logic_vector(31 downto 0)
      );
-end SVM_wrapper;
+end SVM_wrapper_Roto;
 
-architecture Behavioral of SVM_wrapper is
+architecture Behavioral of SVM_wrapper_Roto is
 
     signal w_direcciones : std_logic_vector(17 downto 0); --Coeficientes de la matriz de conmutacion
     signal fin_calc_ts : std_logic; 
@@ -32,7 +32,7 @@ architecture Behavioral of SVM_wrapper is
 
 begin
 
-    modulador_core : entity work.modulador
+    modulador_core : entity work.modulador_roto
         port map (
             i_reloj        => i_clk,
             i_enable       => i_enable,

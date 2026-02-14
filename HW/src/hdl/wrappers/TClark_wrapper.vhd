@@ -4,12 +4,21 @@ use work.declaraciones.all;
 
 entity TClark_wrapper is
     port ( 
-        -- Entradas trifásicas separadas
-        i_U : in std_logic_vector(31 downto 0);
-        i_V : in std_logic_vector(31 downto 0);
-        i_W : in std_logic_vector(31 downto 0);
+        i_clk : in std_logic;
+        i_rst : in std_logic;
 
-        -- Salidas alfa-beta separadas
+        --Inicio de calculo
+        i_start : in std_logic;
+
+        -- Entradas de tensiones trifasicas (U, V ,W)
+        i_U : in std_logic_vector (31 downto 0);
+        i_V : in std_logic_vector (31 downto 0);
+        i_W : in std_logic_vector (31 downto 0);
+
+        -- Salida Calculo terminado
+        o_valido : out std_logic;
+
+        -- Salidas de tensiones en el sistema alfa-beta
         o_alfa : out std_logic_vector(31 downto 0);
         o_beta : out std_logic_vector(31 downto 0)
     );
