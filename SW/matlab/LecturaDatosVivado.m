@@ -2,7 +2,7 @@
 clear; clc; close all;
 
 % Parámetros de simulación (Coinciden con tu VHDL)
-filename = 'salida_100Hz_svm_Corregida.csv';
+filename = 'CORDIC_50Hz_svm_Corregida.csv';
 Fs = 100e6;           % Frecuencia de muestreo: 5 MHz
 Ts = 1/Fs;          % Periodo de muestreo: 200 ns
 
@@ -44,7 +44,7 @@ grid on;
 xlabel('Tiempo [s]');
 ylabel('Amplitud [V]');
 title('Zoom Fase U (Detalle de Conmutación)');
-xlim([0 min(0.04, max(t))]); 
+xlim([0 max(t)]); 
 
 % Zoom a un par de ciclos (40ms aprox) para ver detalle
 subplot(4,1,3);
@@ -53,7 +53,7 @@ grid on;
 xlabel('Tiempo [s]');
 ylabel('Amplitud [V]');
 title('Zoom Fase V (Detalle de Conmutación)');
-xlim([0 min(0.04, max(t))]); 
+xlim([0 max(t)]);
 
 % Zoom a un par de ciclos (40ms aprox) para ver detalle
 subplot(4,1,4);
@@ -62,7 +62,7 @@ grid on;
 xlabel('Tiempo [s]');
 ylabel('Amplitud [V]');
 title('Zoom Fase W (Detalle de Conmutación)');
-xlim([0 max(t)]); 
+xlim([0 max(t)]);
 % Mostramos solo los primeros 40ms o el total si es menor
 
 %% Grafico 2: Análisis Espectral (FFT de Fase U)
@@ -116,9 +116,9 @@ w_load = w - v_neutro;
 
 % 3. Simular la corriente usando las tensiones corregidas
 % Ahora el sistema "ve" un neutro flotante y la suma de corrientes será 0.
-i_u = lsim(G_z, u, t);
-i_v = lsim(G_z, v, t);
-i_w = lsim(G_z, w, t);
+i_u = lsim(G_z, u_load, t);
+i_v = lsim(G_z, v_load, t);
+i_w = lsim(G_z, w_load, t);
 
 % Verificación opcional:
 % La suma i_u + i_v + i_w debería ser ahora extremadamente cercana a cero (orden de 1e-15)
@@ -130,7 +130,7 @@ plot(t, sum_currents); title('Suma de corrientes (Debe ser cero)');
 figure('Name', 'Corrientes Resultantes en Carga RL', 'Color', 'w');
 
 % Plot de las corrientes
-subplot(2,1,1);
+%subplot(2,1,1);
 plot(t, i_u, 'r', 'LineWidth', 1.2); hold on;
 plot(t, i_v, 'g', 'LineWidth', 1.2);
 plot(t, i_w, 'b', 'LineWidth', 1.2);
@@ -142,14 +142,15 @@ title('Corrientes Trifásicas Filtradas por Carga RL');
 xlim([0 max(t)]);
 
 % Zoom para ver el rizado (ripple) de corriente debido al PWM
-subplot(2,1,2);
+figure('Name', 'Zoom Ripple Corrientes', 'Color', 'w');
+%subplot(2,1,2);
 plot(t, i_u, 'r', 'LineWidth', 1.5);
 grid on;
 title('Zoom Corriente Fase U (Ripple de PWM visible)');
 ylabel('Corriente [A]');
 xlabel('Tiempo [s]');
 % Hacemos zoom en una zona donde la corriente sea alta (ej: 10ms a 12ms)
-xlim([0.01 0.012]); 
+xlim([0.07 0.072]); 
 
 %% 5. Verificación opcional: Plano Alfa-Beta (Círculo de Clarke)
 % Transformada de Clarke manual para ver la trayectoria del vector corriente
