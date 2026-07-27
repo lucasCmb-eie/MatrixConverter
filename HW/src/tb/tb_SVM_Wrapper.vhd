@@ -1,6 +1,7 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use ieee.fixed_pkg.all;
+use ieee.numeric_std.all;
 
 library std;
 use std.textio.all;
@@ -46,20 +47,22 @@ architecture Behavioral of tb_SVM_Wrapper is
     signal Clark_beta_Io : std_logic_vector(31 downto 0);
 
     -- Salida diente de sierra
-    signal Sierra_angle_50Hz : std_logic_vector(10 downto 0);-- Salida del diente de sierra 50Hz
-    signal Sierra_angle_Var : std_logic_vector(10 downto 0);-- Salida del diente de sierra variable
+    signal Angle_Vi : unsigned(10 downto 0);-- Salida del diente de sierra 50Hz
+    signal Angle_Io : unsigned(10 downto 0);-- Salida del diente de sierra variable
     
     signal w_direcciones : std_logic_vector(17 downto 0); --Coeficientes de la matriz de conmutacion
     signal w_trigger : std_logic;
-    signal w_ClarkValido : std_logic;
+    signal w_ClarkValido_V : std_logic;
+    signal w_ClarkValido_I : std_logic;
+
 begin
     
     modulador_core : entity work.SVM_wrapper
         port map(
             i_clk    => clk, 
             i_enable => enable_SVM,
-            i_al_o   => Sierra_angle_50Hz, 
-            i_be_i   => Sierra_angle_50Hz, 
+            i_al_o   => STD_LOGIC_VECTOR(Angle_Vi), 
+            i_be_i   => STD_LOGIC_VECTOR(Angle_Vi), 
             i_q_i    => q_value,  
             i_phi_i  => phi_value, 
 
@@ -73,7 +76,7 @@ begin
             o_U => tension_SVM_U,
             o_V => tension_SVM_V,
             o_W => tension_SVM_W
-        );
+    );
     
     --NCO
     AC: entity work.AC_SOURCE
@@ -84,7 +87,7 @@ begin
             o_U   => tension_fase_U,
             o_V   => tension_fase_V,
             o_W   => tension_fase_W
-        );
+    );
 
     TClark_Vi: entity work.TransformadaClark
         generic map (
@@ -100,11 +103,11 @@ begin
             i_V   => tension_fase_V,
             i_W   => tension_fase_W,
 
-            o_valido => w_ClarkValido,
+            o_valido => w_ClarkValido_V,
 
             o_alfa => Clark_alfa_Vi,
             o_beta => Clark_beta_Vi
-        );
+    );
 
     TClark_Io: entity work.TransformadaClark
         generic map (
@@ -120,32 +123,39 @@ begin
             i_V   => tension_fase_V,
             i_W   => tension_fase_W,
 
-            o_valido => w_ClarkValido,
+            o_valido => w_ClarkValido_I,
 
             o_alfa => Clark_alfa_Io,
             o_beta => Clark_beta_Io
-        );
-
-    PhaseGenVar: entity work.PhaseSawGen
-        generic map(
-            G_CLK_FREQ => 1.0e8,  -- frecuencia de reloj (Hz)
-            G_SAW_FREQ   => 100.0    -- frecuencia de la senoide (Hz)
-        )
+    );
+    
+    PhaseGenVar_V: entity work.CORDIC_atan2
         port map (
-            i_clk   => clk,
-            i_rst   => rst,
-            i_sin   => to_sfixed(Clark_alfa_Vi, INT_BITS - 1, -FRAC_BITS),  -- usamos componente α
-            o_angle => Sierra_angle_Var
-        );
+            clk   => clk,
+            rst   => rst,
+            start   => w_ClarkValido_V, 
 
-    PhaseGen50: entity work.PhaseSawGen
+            x_in => signed(Clark_beta_Vi),
+            y_in => signed(Clark_alfa_Vi),
+
+            angle_out => Angle_Vi,
+            done => open
+    );
+
+    PhaseGenVar_I: entity work.CORDIC_atan2
         port map (
-            i_clk   => clk,
-            i_rst   => rst,
-            i_sin   => to_sfixed(Clark_alfa_Vi, INT_BITS - 1, -FRAC_BITS),  -- usamos componente α
-            o_angle => Sierra_angle_50Hz
-        );
+            clk   => clk,
+            rst   => rst,
+            start   => w_ClarkValido_I, 
 
+            x_in => signed(Clark_beta_Io),
+            y_in => signed(Clark_alfa_Io),
+
+            angle_out => Angle_Io,
+            done => open
+    );
+
+    
     DoClock: process
     begin
         clk <= '1';

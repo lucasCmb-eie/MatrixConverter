@@ -34,7 +34,7 @@ set files [list \
   [file normalize "${origin_dir}/HW/src/hdl/matrixConmut.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/RL_fase.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/TransformadaClark.vhd"] \
-  [file normalize "${origin_dir}/HW/src/hdl/PhaseSawGen.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/CORDIC_atan2.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/util/red_sector.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/util/sine_generator.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/util/sine_lut_pkg.vhd"] \
@@ -83,8 +83,7 @@ set files [list \
  [file normalize "${origin_dir}/HW/src/tb/matrixConmut_tb.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/sine_generator_tb.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_TransformadaClark.vhd"] \
- [file normalize "${origin_dir}/HW/src/tb/tb_DienteSierraGen.vhd"] \
- [file normalize "${origin_dir}/HW/src/tb/tb_PhaseSawGen.vhd"] \
+ [file normalize "${origin_dir}/HW/src/tb/tb_CORDIC_atan2.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_testSistemaLA.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_SVM_Wrapper.vhd"] \
 ]
@@ -125,9 +124,9 @@ current_run -implementation [get_runs impl_1]
 
 puts "INFO: Project created:${_xil_proj_name_}"
 
-# Create block design
- source $origin_dir/HW/src/bd/design_SVM_PS.tcl
+# # Create block design
+# source $origin_dir/HW/src/bd/design_SVM_PS.tcl
 
- # Generate the wrapper
- set design_name [get_bd_designs]
- make_wrapper -files [get_files $design_name.bd] -top -import
+# # Generate the wrapper
+# set design_name [get_bd_designs]
+# make_wrapper -files [get_files $design_name.bd] -top -import
