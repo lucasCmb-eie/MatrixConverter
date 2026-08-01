@@ -12,6 +12,7 @@ entity sine_generator is
     port (
         clk   : in  std_logic;
         reset : in  std_logic;
+        frec_inp : in  std_logic_vector(1 downto 0);
         -- Salida de la onda senoidal en formato Q8.24
         sine_out : out signed(SINE_DATA_WIDTH - 1 downto 0)
     );
@@ -21,16 +22,31 @@ architecture rtl of sine_generator is
 
     -- Parámetros del NCO
     constant PHASE_ACCUM_WIDTH : integer := 32;
-    -- Palabra de sintonía para 50 Hz con clock de 100 MHz
-    constant FREQ_TUNING_WORD  : unsigned(PHASE_ACCUM_WIDTH - 1 downto 0)
-        := to_unsigned(integer(50.0 * 2.0**32 / 100_000_000.0), PHASE_ACCUM_WIDTH);
-        -- = 2147
+
+    -- Palabras de sintonía para 50 Hz pre-calculadas
+    constant FTW_100MHZ : unsigned(PHASE_ACCUM_WIDTH - 1 downto 0) := to_unsigned(2147, PHASE_ACCUM_WIDTH);
+    constant FTW_10MHZ  : unsigned(PHASE_ACCUM_WIDTH - 1 downto 0) := to_unsigned(21475, PHASE_ACCUM_WIDTH);
+    constant FTW_1MHZ   : unsigned(PHASE_ACCUM_WIDTH - 1 downto 0) := to_unsigned(214748, PHASE_ACCUM_WIDTH);
 
     -- Señales internas
+    signal freq_tuning_word  : unsigned(PHASE_ACCUM_WIDTH - 1 downto 0);
     signal phase_accumulator : unsigned(PHASE_ACCUM_WIDTH - 1 downto 0) := (others => '0');
     signal lut_address       : unsigned(LUT_ADDR_WIDTH - 1 downto 0);
 
 begin
+
+    freq_mux_process : process(frec_inp)
+    begin
+        case frec_inp is
+            when "00" => 
+                freq_tuning_word <= FTW_1MHZ;
+            when "01" => 
+                freq_tuning_word <= FTW_10MHZ;
+            when others =>
+                freq_tuning_word <= FTW_100MHZ;
+        end case;
+    end process;
+
 
     -- Proceso del NCO: Acumulador de Fase
     nco_process : process (clk, reset)
@@ -42,7 +58,7 @@ begin
 
         if rising_edge(clk) then
     
-            phase_accumulator <= phase_accumulator + FREQ_TUNING_WORD;
+            phase_accumulator <= phase_accumulator + freq_tuning_word;
         end if;
     end process nco_process;
 

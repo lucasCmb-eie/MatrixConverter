@@ -12,7 +12,7 @@ end entity ncoLUT_tb;
 
 architecture ncoLUT_tb_arch of ncoLUT_tb is
 
-    constant PER2 : time := (10 ns /2); --periodo/2 (el test será hecho con un test_clk_in de 100 MHz) Se alcanza una señal seno de 48.8Hz
+    constant PER2 : time := (1 us /2);
     constant INT_BITS    : integer := 3;
     constant FRAC_BITS   : integer := 29;
     constant coef_Alpha : sfixed(INT_BITS-1 downto -FRAC_BITS) := to_sfixed(0.00000041667, INT_BITS-1, -FRAC_BITS);
@@ -36,32 +36,34 @@ nco: entity work.AC_Source
     port map(
         i_clk => test_clk_in,
         i_rst => test_rst_in,
+        i_frec => "00",
+
         o_U => test_o_U,
         o_V => test_o_V,
         o_W => test_o_W
         );
         
-RL: entity work.RL_wrapper
-    generic map (
-        INT_BITS  => 3,
-        FRAC_BITS => 29
-    )
-    port map (
-        i_clk   => test_clk_in,
-        i_rst   => test_rst_in,
+-- RL: entity work.RL_wrapper
+--     generic map (
+--         INT_BITS  => 3,
+--         FRAC_BITS => 29
+--     )
+--     port map (
+--         i_clk   => test_clk_in,
+--         i_rst   => test_rst_in,
     
-        i_c_a0  => to_slv(coef_Alpha),
-        i_c_a1  => to_slv(coef_Alpha),
-        i_c_b1  => to_slv(coef_Beta),
+--         i_c_a0  => to_slv(coef_Alpha),
+--         i_c_a1  => to_slv(coef_Alpha),
+--         i_c_b1  => to_slv(coef_Beta),
     
-        i_U => test_o_U,
-        i_V => test_o_V,
-        i_W => test_o_W,
+--         i_U => test_o_U,
+--         i_V => test_o_V,
+--         i_W => test_o_W,
     
-        o_Iu => corriente_fase_U,
-        o_Iv => corriente_fase_V,
-        o_Iw => corriente_fase_W
-    );
+--         o_Iu => corriente_fase_U,
+--         o_Iv => corriente_fase_V,
+--         o_Iw => corriente_fase_W
+--     );
 
 --Clock
 DoClock: process
