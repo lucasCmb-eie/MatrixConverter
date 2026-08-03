@@ -11,8 +11,7 @@ end tb_SVM_Wrapper;
 
 architecture Behavioral of tb_SVM_Wrapper is
     
-    constant PER2 : time := (10 ns /2); -- Se busca 100MHz
-    constant CLK_FREQ : real := 1.0e8;
+    constant PER2 : time := (100 ns /2); -- 10 MHz
     
     constant INT_BITS    : integer := 8;
     constant FRAC_BITS   : integer := 24;
@@ -83,6 +82,7 @@ begin
         port map (
             i_clk => clk,
             i_rst => rst,
+            i_frec => "01",
 
             o_U   => tension_fase_U,
             o_V   => tension_fase_V,
@@ -187,66 +187,56 @@ begin
     -- ========================================================================
     -- Asegúrate de incluir 'use std.textio.all;' antes de la entity si no está.
     
-    -- gen_csv_5MHz: process
-    --     file file_handler : text open write_mode is "F:\Proyecto_Final\repo\FinalProject_Ing\SW\matlab\test.csv";
-    --     variable row      : line;
+    gen_csv_5MHz: process
+        file file_handler : text open write_mode is "F:\FPGA\Potencia FPGA\MatrixConverter\SW\matlab\Clk10M_test50Hz.csv";
+        variable row      : line;
         
-    --     -- Contadores y control
-    --     variable v_ciclos_counter : integer := 2;
-    --     variable v_muestra_idx    : integer := 0;
-    --     constant C_DIVISOR        : integer := 20; -- 100MHz / 5MHz = 20
+        -- Contadores y control
+        variable v_ciclos_counter : integer := 2;
+        variable v_muestra_idx    : integer := 0;
+        constant C_DIVISOR        : integer := 20; -- 100MHz / 5MHz = 20
         
-    --     -- Variables auxiliares para conversión a Real
-    --     variable v_real_U : real;
-    --     variable v_real_V : real;
-    --     variable v_real_W : real;
-    -- begin
-    --     -- 1. Escribir Encabezado
-    --     write(row, string'("Muestra,Tension_U,Tension_V,Tension_W"));
-    --     writeline(file_handler, row);
+        -- Variables auxiliares para conversión a Real
+        variable v_real_U : real;
+        variable v_real_V : real;
+        variable v_real_W : real;
+    begin
+        -- 1. Escribir Encabezado
+        write(row, string'("Muestra,Tension_U,Tension_V,Tension_W"));
+        writeline(file_handler, row);
 
-    --     -- 2. Bucle principal
-    --     loop
-    --         wait until rising_edge(clk);
+        -- 2. Bucle principal
+        loop
+            wait until rising_edge(clk);
             
-    --         -- Solo ejecutamos la escritura cuando el contador llega a 0
-    --         --if v_ciclos_counter = 0 then
-                
-    --             -- Conversión de Q8.24 (std_logic_vector) a REAL usando fixed_pkg
-    --             -- Usamos las constantes ya definidas en tu código [cite: 4]
-    --             v_real_U := to_real(to_sfixed(tension_SVM_U, INT_BITS-1, -FRAC_BITS));
-    --             v_real_V := to_real(to_sfixed(tension_SVM_V, INT_BITS-1, -FRAC_BITS));
-    --             v_real_W := to_real(to_sfixed(tension_SVM_W, INT_BITS-1, -FRAC_BITS));
+            -- Conversión de Q8.24 (std_logic_vector) a REAL usando fixed_pkg
+            -- Usamos las constantes ya definidas en tu código [cite: 4]
+            v_real_U := to_real(to_sfixed(tension_SVM_U, INT_BITS-1, -FRAC_BITS));
+            v_real_V := to_real(to_sfixed(tension_SVM_V, INT_BITS-1, -FRAC_BITS));
+            v_real_W := to_real(to_sfixed(tension_SVM_W, INT_BITS-1, -FRAC_BITS));
 
-    --             -- Columna 1: Indice de muestra (equivale a pasos de 200ns)
-    --             write(row, v_muestra_idx);
-    --             write(row, string'(","));
-                
-    --             -- Columna 2: U
-    --             write(row, v_real_U);
-    --             write(row, string'(","));
-                
-    --             -- Columna 3: V
-    --             write(row, v_real_V);
-    --             write(row, string'(","));
-                
-    --             -- Columna 4: W
-    --             write(row, v_real_W);
-                
-    --             writeline(file_handler, row);
-                
-    --             v_muestra_idx := v_muestra_idx + 1;
-    --         --end if;
-
-    --         -- Gestión del contador de diezmado (0 a 19)
-    --         --if v_ciclos_counter = (C_DIVISOR - 1) then
-    --          --   v_ciclos_counter := 0;
-    --        -- else
-    --         --    v_ciclos_counter := v_ciclos_counter + 1;
-    --         --end if;
+            -- Columna 1: Indice de muestra (equivale a pasos de 200ns)
+            write(row, v_muestra_idx);
+            write(row, string'(","));
             
-    --     end loop;
-    -- end process gen_csv_5MHz;
+            -- Columna 2: U
+            write(row, v_real_U);
+            write(row, string'(","));
+            
+            -- Columna 3: V
+            write(row, v_real_V);
+            write(row, string'(","));
+            
+            -- Columna 4: W
+            write(row, v_real_W);
+            
+            writeline(file_handler, row);
+            
+            v_muestra_idx := v_muestra_idx + 1;
+
+            
+        end loop;
+    end process gen_csv_5MHz;
 
 
 end Behavioral;
