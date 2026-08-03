@@ -10,6 +10,7 @@ entity AC_Source is
 port (
     i_clk : in  std_logic; --! Entrada de Clock : 100KHz
     i_rst : in  std_logic; --! Reset
+    i_frec : in  std_logic_vector(1 downto 0); --! Entrada de frecuencia de salida
 
     o_U : out std_logic_vector(31 downto 0); --! Salida de tensión de linea U
     o_V : out std_logic_vector(31 downto 0); --! Salida de tensión de linea V
@@ -32,6 +33,8 @@ architecture Behavioral of AC_Source is
         port (
             clk      : in  std_logic;
             reset    : in  std_logic;
+            frec_inp : in  std_logic_vector(1 downto 0);
+
             sine_out : out signed(31 downto 0)
         );
     end component;
@@ -52,6 +55,7 @@ begin
         port map (
             clk   => i_clk,
             reset => i_rst,
+            frec_inp => i_frec,
             
             sine_out => w_lineaU
         );
@@ -63,6 +67,7 @@ begin
         port map (
             clk   => i_clk,
             reset => i_rst,
+            frec_inp => i_frec,
             
             sine_out => w_lineaV
         );
@@ -74,6 +79,7 @@ begin
         port map (
             clk   => i_clk,
             reset => i_rst,
+            frec_inp => i_frec,
             
             sine_out => w_lineaW
         );

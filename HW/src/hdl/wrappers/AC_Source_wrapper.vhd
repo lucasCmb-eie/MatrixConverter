@@ -7,6 +7,7 @@ entity AC_Source_wrapper is
     port (
         i_clk : in  std_logic; --! Entrada de Clock : 100KHz
         i_rst : in  std_logic; --! Reset
+        i_frec : in  std_logic_vector(1 downto 0); --! Entrada de frecuencia de salida
 
         o_U : out std_logic_vector(31 downto 0); --! Salida de la tensión de linea U
         o_V : out std_logic_vector(31 downto 0); --! Salida de la tensión de linea V
@@ -21,6 +22,7 @@ begin
         port map (
             i_clk => i_clk,
             i_rst => i_rst,
+            i_frec => i_frec,
             
             o_U => o_U,
             o_V => o_V,            

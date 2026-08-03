@@ -50,7 +50,7 @@ architecture tb of tb_modulador is
   signal auxi02      : std_logic;
   signal direcciones : std_logic_vector(17 downto 0);
 
-  constant tbperiod   : time      := 5 ns; -- 200MHz
+  constant tbperiod   : time      := 1 us; -- 10MHz
   signal   tbclock    : std_logic := '0';
   signal   tbsimended : std_logic := '0';
 
@@ -67,9 +67,9 @@ architecture tb of tb_modulador is
   signal t11    : integer                       := 0;
   signal t12    : integer                       := 0;
   signal t13    : integer                       := 0;
-  signal al_o   : std_logic_vector(10 downto 0) := "00000000000";
-  signal be_i   : std_logic_vector(10 downto 0) := "00000000000";
-  signal q_i    : std_logic_vector(8 downto 0)  := "000000000";
+  signal al_o   : std_logic_vector(10 downto 0) := "00000011110";
+  signal be_i   : std_logic_vector(10 downto 0) := "00000101101";
+  signal q_i    : std_logic_vector(8 downto 0)  := "001000000";
   signal phi_i  : std_logic_vector(10 downto 0) := "00000000000";
   signal enable : std_logic                     := '0';
 
@@ -106,190 +106,190 @@ begin
 
   reset_proceso : process is
     begin
-        wait for 10 us;
+        wait for 2 us;
         enable <= '1';
         wait;
     end process;
 
-  medidor_tiempo : process (tbclock, auxi02) is
-  begin
+  -- medidor_tiempo : process (tbclock, auxi02) is
+  -- begin
 
-    if (rising_edge(tbclock) and enable = '1') then
-      if (direcciones(0) = '1') then
-        t1 <= t1 + 1;
-      end if;
-      if (direcciones(1) = '1') then
-        t2 <= t2 + 1;
-      end if;
-      if (direcciones(2) = '1') then
-        t3 <= t3 + 1;
-      end if;
-      if (direcciones(3) = '1') then
-        t4 <= t4 + 1;
-      end if;
-      if (direcciones(4) = '1') then
-        t5 <= t5 + 1;
-      end if;
-      if (direcciones(5) = '1') then
-        t6 <= t6 + 1;
-      end if;
-      if (direcciones(6) = '1') then
-        t7 <= t7 + 1;
-      end if;
-      if (direcciones(7) = '1') then
-        t8 <= t8 + 1;
-      end if;
-      if (direcciones(8) = '1') then
-        t9 <= t9 + 1;
-      end if;
-      if (direcciones(9) = '1') then
-        t10 <= t10 + 1;
-      end if;
-      if (direcciones(10) = '1') then
-        t11 <= t11 + 1;
-      end if;
-      if (direcciones(11) = '1') then
-        t12 <= t12 + 1;
-      end if;
-      if (direcciones(12) = '1') then
-        t13 <= t13 + 1;
-      end if;
-    end if;
+  --   if (rising_edge(tbclock) and enable = '1') then
+  --     if (direcciones(0) = '1') then
+  --       t1 <= t1 + 1;
+  --     end if;
+  --     if (direcciones(1) = '1') then
+  --       t2 <= t2 + 1;
+  --     end if;
+  --     if (direcciones(2) = '1') then
+  --       t3 <= t3 + 1;
+  --     end if;
+  --     if (direcciones(3) = '1') then
+  --       t4 <= t4 + 1;
+  --     end if;
+  --     if (direcciones(4) = '1') then
+  --       t5 <= t5 + 1;
+  --     end if;
+  --     if (direcciones(5) = '1') then
+  --       t6 <= t6 + 1;
+  --     end if;
+  --     if (direcciones(6) = '1') then
+  --       t7 <= t7 + 1;
+  --     end if;
+  --     if (direcciones(7) = '1') then
+  --       t8 <= t8 + 1;
+  --     end if;
+  --     if (direcciones(8) = '1') then
+  --       t9 <= t9 + 1;
+  --     end if;
+  --     if (direcciones(9) = '1') then
+  --       t10 <= t10 + 1;
+  --     end if;
+  --     if (direcciones(10) = '1') then
+  --       t11 <= t11 + 1;
+  --     end if;
+  --     if (direcciones(11) = '1') then
+  --       t12 <= t12 + 1;
+  --     end if;
+  --     if (direcciones(12) = '1') then
+  --       t13 <= t13 + 1;
+  --     end if;
+  --   end if;
 
-    if (falling_edge(auxi02) and enable = '1') then
-      t1  <= 0;
-      t2  <= 0;
-      t3  <= 0;
-      t4  <= 0;
-      t5  <= 0;
-      t6  <= 0;
-      t7  <= 0;
-      t8  <= 0;
-      t9  <= 0;
-      t10 <= 0;
-      t11 <= 0;
-      t12 <= 0;
-      t13 <= 0;
-    end if;
+  --   if (falling_edge(auxi02) and enable = '1') then
+  --     t1  <= 0;
+  --     t2  <= 0;
+  --     t3  <= 0;
+  --     t4  <= 0;
+  --     t5  <= 0;
+  --     t6  <= 0;
+  --     t7  <= 0;
+  --     t8  <= 0;
+  --     t9  <= 0;
+  --     t10 <= 0;
+  --     t11 <= 0;
+  --     t12 <= 0;
+  --     t13 <= 0;
+  --   end if;
 
-  end process medidor_tiempo;
+  -- end process medidor_tiempo;
 
-  -- Lectura del archivo con datos de entrada
-  lectura_process : process (auxi02) is
+  -- -- Lectura del archivo con datos de entrada
+  -- lectura_process : process (auxi02) is
 
-    variable line_input : line;
-    variable param      : string(1 downto 3);
-    variable alo        : std_logic_vector(10 downto 0);
-    variable bei        : std_logic_vector(10 downto 0);
-    variable phi        : std_logic_vector(10 downto 0);
-    variable q          : std_logic_vector(8 downto 0);
+  --   variable line_input : line;
+  --   variable param      : string(1 downto 3);
+  --   variable alo        : std_logic_vector(10 downto 0);
+  --   variable bei        : std_logic_vector(10 downto 0);
+  --   variable phi        : std_logic_vector(10 downto 0);
+  --   variable q          : std_logic_vector(8 downto 0);
 
-  begin
+  -- begin
 
-    if (endfile(ArchivoEntrada)) then
-      report "Archivo entrada leido completamente";
-    end if;
+  --   if (endfile(ArchivoEntrada)) then
+  --     report "Archivo entrada leido completamente";
+  --   end if;
 
-    if (rising_edge(auxi02) and not endfile(ArchivoEntrada)) then
-      readline(ArchivoEntrada, line_input);
-      hread(line_input, alo);
+  --   if (rising_edge(auxi02) and not endfile(ArchivoEntrada)) then
+  --     readline(ArchivoEntrada, line_input);
+  --     hread(line_input, alo);
 
-      al_o <= alo;
-      --
-      readline(ArchivoEntrada, line_input);
-      hread(line_input, bei);
+  --     al_o <= alo;
+  --     --
+  --     readline(ArchivoEntrada, line_input);
+  --     hread(line_input, bei);
 
-      be_i <= bei;
-      --
-      readline(ArchivoEntrada, line_input);
-      read(line_input, q);
+  --     be_i <= bei;
+  --     --
+  --     readline(ArchivoEntrada, line_input);
+  --     read(line_input, q);
 
-      q_i <= q;
-      --
-      readline(ArchivoEntrada, line_input);
-      hread(line_input, phi);
+  --     q_i <= q;
+  --     --
+  --     readline(ArchivoEntrada, line_input);
+  --     hread(line_input, phi);
 
-      phi_i <= phi;
+  --     phi_i <= phi;
 
-      readline(ArchivoEntrada, line_input);
-    end if;
+  --     readline(ArchivoEntrada, line_input);
+  --   end if;
 
-  end process lectura_process;
+  -- end process lectura_process;
 
-  -- Escritura del archivo de salida
-  escritura_process : process (auxi02) is
+  -- -- Escritura del archivo de salida
+  -- escritura_process : process (auxi02) is
 
-    variable line_output : line;
-    variable ttot        : integer := 0;
+  --   variable line_output : line;
+  --   variable ttot        : integer := 0;
 
-  begin
+  -- begin
 
-    if (rising_edge(auxi02)) then
-      ttot := (t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8 + t9 + t10 + t11 + t12 + t13);
+  --   if (rising_edge(auxi02)) then
+  --     ttot := (t1 + t2 + t3 + t4 + t5 + t6 + t7 + t8 + t9 + t10 + t11 + t12 + t13);
 
-      write(line_output, string'("Valores Direcciones, "));
-      write(line_output, string'("multiplicar por 0.005 us para obtener valor temporal"));
-      writeline(ArchivoSalida, line_output);
+  --     write(line_output, string'("Valores Direcciones, "));
+  --     write(line_output, string'("multiplicar por 0.005 us para obtener valor temporal"));
+  --     writeline(ArchivoSalida, line_output);
 
-      write(line_output, string'("N1: "));
-      write(line_output, t1);
-      writeline(ArchivoSalida, line_output);
+  --     write(line_output, string'("N1: "));
+  --     write(line_output, t1);
+  --     writeline(ArchivoSalida, line_output);
 
-      write(line_output, string'("N2: "));
-      write(line_output, t2);
-      writeline(ArchivoSalida, line_output);
+  --     write(line_output, string'("N2: "));
+  --     write(line_output, t2);
+  --     writeline(ArchivoSalida, line_output);
 
-      write(line_output, string'("N3: "));
-      write(line_output, t3);
-      writeline(ArchivoSalida, line_output);
+  --     write(line_output, string'("N3: "));
+  --     write(line_output, t3);
+  --     writeline(ArchivoSalida, line_output);
 
-      write(line_output, string'("N4: "));
-      write(line_output, t4);
-      writeline(ArchivoSalida, line_output);
+  --     write(line_output, string'("N4: "));
+  --     write(line_output, t4);
+  --     writeline(ArchivoSalida, line_output);
 
-      write(line_output, string'("N5: "));
-      write(line_output, t5);
-      writeline(ArchivoSalida, line_output);
+  --     write(line_output, string'("N5: "));
+  --     write(line_output, t5);
+  --     writeline(ArchivoSalida, line_output);
 
-      write(line_output, string'("N6: "));
-      write(line_output, t6);
-      writeline(ArchivoSalida, line_output);
+  --     write(line_output, string'("N6: "));
+  --     write(line_output, t6);
+  --     writeline(ArchivoSalida, line_output);
 
-      write(line_output, string'("N7: "));
-      write(line_output, t7);
-      writeline(ArchivoSalida, line_output);
+  --     write(line_output, string'("N7: "));
+  --     write(line_output, t7);
+  --     writeline(ArchivoSalida, line_output);
 
-      write(line_output, string'("N8: "));
-      write(line_output, t8);
-      writeline(ArchivoSalida, line_output);
+  --     write(line_output, string'("N8: "));
+  --     write(line_output, t8);
+  --     writeline(ArchivoSalida, line_output);
 
-      write(line_output, string'("N9: "));
-      write(line_output, t9);
-      writeline(ArchivoSalida, line_output);
+  --     write(line_output, string'("N9: "));
+  --     write(line_output, t9);
+  --     writeline(ArchivoSalida, line_output);
 
-      write(line_output, string'("N10: "));
-      write(line_output, t10);
-      writeline(ArchivoSalida, line_output);
+  --     write(line_output, string'("N10: "));
+  --     write(line_output, t10);
+  --     writeline(ArchivoSalida, line_output);
 
-      write(line_output, string'("N11: "));
-      write(line_output, t11);
-      writeline(ArchivoSalida, line_output);
+  --     write(line_output, string'("N11: "));
+  --     write(line_output, t11);
+  --     writeline(ArchivoSalida, line_output);
 
-      write(line_output, string'("N12: "));
-      write(line_output, t12);
-      writeline(ArchivoSalida, line_output);
+  --     write(line_output, string'("N12: "));
+  --     write(line_output, t12);
+  --     writeline(ArchivoSalida, line_output);
 
-      write(line_output, string'("N13: "));
-      write(line_output, t13);
-      writeline(ArchivoSalida, line_output);
+  --     write(line_output, string'("N13: "));
+  --     write(line_output, t13);
+  --     writeline(ArchivoSalida, line_output);
 
-      write(line_output, string'("Ntot: "));
-      write(line_output, Ttot);
-      writeline(ArchivoSalida, line_output);
-      ttot := 0;
-    end if;
+  --     write(line_output, string'("Ntot: "));
+  --     write(line_output, Ttot);
+  --     writeline(ArchivoSalida, line_output);
+  --     ttot := 0;
+  --   end if;
 
-  end process escritura_process;
+  -- end process escritura_process;
 
 end architecture tb;
 
