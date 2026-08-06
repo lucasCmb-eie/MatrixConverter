@@ -389,17 +389,27 @@ begin
         when "00000011100" =>                             --
 
           if (acumul(10 downto 9) = "00") then
-            dela01 <= "00" & acumul(8 downto 1);          -- Toma el tiempo de los vectores nulos
-            dela13 <= "00" & acumul(8 downto 1);          -- Toma el tiempo de los vectores nulos
-            dela04 <= '0' & acumul(8 downto 0);           -- Toma el tiempo de los vectores nulos
-            dela07 <= '0' & acumul(8 downto 0);           -- Toma el tiempo de los vectores nulos
-            dela10 <= '0' & acumul(8 downto 0);           -- Toma el tiempo de los vectores nulos
+            -- ARREGLO: Distribución 100% Simétrica (Symmetrical Space Vector)
+            -- Suma total = 25% + 0% + 50% + 0% + 25% = 100% exacto del 'acumul'
+            
+            -- acumul(8 downto 2) es dividir por 4 (7 bits). Concatenamos 3 ceros para llegar a 10 bits.
+            dela01 <= "000" & acumul(8 downto 2);         -- T_Nulo 1 (Borde inicial) : 25%
+            dela13 <= "000" & acumul(8 downto 2);         -- T_Nulo 5 (Borde final)   : 25%
+            
+            -- Anulamos los nulos intermedios para reducir pérdidas por conmutación.
+            dela04 <= "0000000000";                       -- T_Nulo 2 (Intermedio)    : 0%
+            dela10 <= "0000000000";                       -- T_Nulo 4 (Intermedio)    : 0%
+            
+            -- acumul(8 downto 1) es dividir por 2 (8 bits). Concatenamos 2 ceros para llegar a 10 bits.
+            dela07 <= "00"  & acumul(8 downto 1);         -- T_Nulo 3 (Centro exacto) : 50%
+
           else
-            dela01 <= "0000000000";                       -- Toma el tiempo de los vectores nulos
-            dela13 <= "0000000000";                       -- Toma el tiempo de los vectores nulos
-            dela04 <= "0000000000";                       -- Toma el tiempo de los vectores nulos
-            dela07 <= "0000000000";                       -- Toma el tiempo de los vectores nulos
-            dela10 <= "0000000000";                       -- Toma el tiempo de los vectores nulos
+            -- Condición de seguridad por si 'acumul' se desborda
+            dela01 <= "0000000000";
+            dela13 <= "0000000000";
+            dela04 <= "0000000000";
+            dela07 <= "0000000000";
+            dela10 <= "0000000000";
           end if;
 
         when "00000011101" =>                             --

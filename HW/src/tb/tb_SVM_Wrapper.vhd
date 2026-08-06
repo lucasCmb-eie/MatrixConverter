@@ -188,7 +188,7 @@ begin
     -- Asegúrate de incluir 'use std.textio.all;' antes de la entity si no está.
     
     gen_csv_5MHz: process
-        file file_handler : text open write_mode is "F:\FPGA\Potencia FPGA\MatrixConverter\SW\matlab\Clk10M_test50Hz.csv";
+        file file_handler : text open write_mode is "F:\FPGA\Potencia FPGA\MatrixConverter\SW\matlab\Clk10M_test50Hz_Simetrico.csv";
         variable row      : line;
         
         -- Contadores y control
