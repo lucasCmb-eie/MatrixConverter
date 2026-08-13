@@ -16,7 +16,7 @@ architecture Behavioral of tb_SVM_Wrapper is
     constant INT_BITS    : integer := 8;
     constant FRAC_BITS   : integer := 24;
     
-    constant q_value : std_logic_vector(8 downto 0) := "001000000"; -- Valor fijo de q (Q0.8)
+    constant q_value : std_logic_vector(8 downto 0) := "000111000"; -- Valor fijo de q (Q0.8) 001000000 64
     constant phi_value : std_logic_vector(10 downto 0) := "00000000000"; -- Valor fijo de phi_i
 
     signal fin_calc_ts : std_logic;
@@ -66,6 +66,7 @@ begin
             i_phi_i  => phi_value, 
 
             o_trg_calculo => w_trigger,
+            o_direcciones_Matriz => w_direcciones,
 
             --Tensiones 
             i_U => tension_fase_U,
@@ -237,6 +238,39 @@ begin
             
         end loop;
     end process gen_csv_5MHz;
+    gen_w_direcciones_csv: process
+        file file_w : text open write_mode is "F:\\FPGA\\Potencia FPGA\\MatrixConverter\\SW\\matlab\\w_direcciones_log.csv";
+        variable row : line;
+        variable v_idx : integer := 0;
+        variable v_bin_str : string(1 to 18);
+        variable i : integer;
+    begin
+        -- Encabezado CSV
+        write(row, string'("Muestra,Direcciones"));
+        writeline(file_w, row);
 
+        -- Bucle de muestreo (cada rising_edge(clk))
+        loop
+            wait until rising_edge(clk);
+
+            -- Construir cadena binaria de 18 bits desde w_direcciones(17 downto 0)
+            v_bin_str := (others => '0');
+            for i in 0 to 17 loop
+                if w_direcciones(17 - i) = '1' then
+                    v_bin_str(i+1) := '1';
+                else
+                    v_bin_str(i+1) := '0';
+                end if;
+            end loop;
+
+            -- Escribir índice y valor
+            write(row, v_idx);
+            write(row, string'(","));
+            write(row, v_bin_str);
+            writeline(file_w, row);
+
+            v_idx := v_idx + 1;
+        end loop;
+    end process gen_w_direcciones_csv;
 
 end Behavioral;

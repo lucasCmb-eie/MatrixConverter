@@ -11,6 +11,7 @@ entity SVM_wrapper is
         i_phi_i  : in std_logic_vector(10 downto 0); --! Desfasaje entre corriente de salida y tension de entrada a la matriz
 
         o_trg_calculo    : out std_logic;
+        o_direcciones_Matriz : out std_logic_vector(17 downto 0); --! Direcciones de conmutacion de la matriz
 
         --Tensiones 
         i_U : in std_logic_vector(31 downto 0);
@@ -31,6 +32,8 @@ architecture Behavioral of SVM_wrapper is
     signal fin_calc_ts_falling : std_logic;
 
 begin
+
+    o_direcciones_Matriz <= w_direcciones;
 
     modulador_core : entity work.modulador
         port map (
