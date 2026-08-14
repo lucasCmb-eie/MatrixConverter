@@ -227,58 +227,58 @@ xlabel('Tiempo [s]'); ylabel('Amplitud'); title('Fase W (Tensión vs Corriente)')
 xlim([0 max(t)]);
 
 
-%% Grafico 7: Tensiones vs Bits de Dirección de la Matriz (Figuras Individuales)
-if ~isempty(t_dir) && ~isempty(direccion)
-    % Aseguramos variable entera para extraer bits
-    dir_uint = uint32(direccion);
-    % Ajustar el zoom a una ventana de 2 ms para poder ver los pulsos PWM
-    t_start = 0.010; % Iniciar en 10 ms
-    t_end   = 0.012; % Terminar en 12 ms
-    
-    % Extraemos los bits 
-    b0 = double(bitget(dir_uint, 1));
-    b1 = double(bitget(dir_uint, 2));
-    b2 = double(bitget(dir_uint, 3));
-    b3 = double(bitget(dir_uint, 4));
-    b4 = double(bitget(dir_uint, 5));
-    b5 = double(bitget(dir_uint, 6));
-    b6 = double(bitget(dir_uint, 7));
-    b7 = double(bitget(dir_uint, 8));
-    b8 = double(bitget(dir_uint, 9));
-
-    % Fase U: Bits 0, 3, 6 vs Tensión U
-    figure('Name', 'Fase U y Estados de Llaves', 'Color', 'w', 'WindowState', 'maximized');
-    plot(t, u, 'r', 'LineWidth', 1.5); hold on;
-    plot(t_dir, b0 * V_max, 'k', 'LineWidth', 1.2);
-    plot(t_dir, b3 * V_max, 'm', 'LineWidth', 1.2);
-    plot(t_dir, b6 * V_max, 'c', 'LineWidth', 1.2);
-    grid on;
-    legend('Tensión U', 'Bit 0', 'Bit 3', 'Bit 6', 'Location', 'best');
-    title('Fase U y Estados de Llaves [Bits 0, 3, 6]');
-    xlabel('Tiempo [s]'); ylabel('Amplitud'); xlim([0 max(t)]);
-    if max(t) > 0.04, xlim([0 0.04]); end 
-
-    % Fase V: Bits 1, 4, 7 vs Tensión V
-    figure('Name', 'Fase V y Estados de Llaves', 'Color', 'w', 'WindowState', 'maximized');
-    plot(t, v, 'g', 'LineWidth', 1.5); hold on;
-    plot(t_dir, b1 * V_max, 'k', 'LineWidth', 1.2);
-    plot(t_dir, b4 * V_max, 'm', 'LineWidth', 1.2);
-    plot(t_dir, b7 * V_max, 'c', 'LineWidth', 1.2);
-    grid on;
-    legend('Tensión V', 'Bit 1', 'Bit 4', 'Bit 7', 'Location', 'best');
-    title('Fase V y Estados de Llaves [Bits 1, 4, 7]');
-    xlabel('Tiempo [s]'); ylabel('Amplitud'); xlim([0 max(t)]);
-    if max(t) > 0.04, xlim([0 0.04]); end
-
-    % Fase W: Bits 2, 5, 8 vs Tensión W
-    figure('Name', 'Fase W y Estados de Llaves', 'Color', 'w', 'WindowState', 'maximized');
-    plot(t, w, 'b', 'LineWidth', 1.5); hold on;
-    plot(t_dir, b2 * V_max, 'k', 'LineWidth', 1.2);
-    plot(t_dir, b5 * V_max, 'm', 'LineWidth', 1.2);
-    plot(t_dir, b8 * V_max, 'c', 'LineWidth', 1.2);
-    grid on;
-    legend('Tensión W', 'Bit 2', 'Bit 5', 'Bit 8', 'Location', 'best');
-    title('Fase W y Estados de Llaves [Bits 2, 5, 8]');
-    xlabel('Tiempo [s]'); ylabel('Amplitud'); xlim([0 max(t)]);
-    if max(t) > 0.04, xlim([0 0.04]); end
-end
+% %% Grafico 7: Tensiones vs Bits de Dirección de la Matriz (Figuras Individuales)
+% if ~isempty(t_dir) && ~isempty(direccion)
+%     % Aseguramos variable entera para extraer bits
+%     dir_uint = uint32(direccion);
+%     % Ajustar el zoom a una ventana de 2 ms para poder ver los pulsos PWM
+%     t_start = 0.010; % Iniciar en 10 ms
+%     t_end   = 0.012; % Terminar en 12 ms
+%     
+%     % Extraemos los bits 
+%     b0 = double(bitget(dir_uint, 1));
+%     b1 = double(bitget(dir_uint, 2));
+%     b2 = double(bitget(dir_uint, 3));
+%     b3 = double(bitget(dir_uint, 4));
+%     b4 = double(bitget(dir_uint, 5));
+%     b5 = double(bitget(dir_uint, 6));
+%     b6 = double(bitget(dir_uint, 7));
+%     b7 = double(bitget(dir_uint, 8));
+%     b8 = double(bitget(dir_uint, 9));
+% 
+%     % Fase U: Bits 0, 3, 6 vs Tensión U
+%     figure('Name', 'Fase U y Estados de Llaves', 'Color', 'w', 'WindowState', 'maximized');
+%     plot(t, u, 'r', 'LineWidth', 1.5); hold on;
+%     plot(t_dir, b0 * V_max, 'k', 'LineWidth', 1.2);
+%     plot(t_dir, b3 * V_max, 'm', 'LineWidth', 1.2);
+%     plot(t_dir, b6 * V_max, 'c', 'LineWidth', 1.2);
+%     grid on;
+%     legend('Tensión U', 'Bit 0', 'Bit 3', 'Bit 6', 'Location', 'best');
+%     title('Fase U y Estados de Llaves [Bits 0, 3, 6]');
+%     xlabel('Tiempo [s]'); ylabel('Amplitud'); xlim([0 max(t)]);
+%     if max(t) > 0.04, xlim([0 0.04]); end 
+% 
+%     % Fase V: Bits 1, 4, 7 vs Tensión V
+%     figure('Name', 'Fase V y Estados de Llaves', 'Color', 'w', 'WindowState', 'maximized');
+%     plot(t, v, 'g', 'LineWidth', 1.5); hold on;
+%     plot(t_dir, b1 * V_max, 'k', 'LineWidth', 1.2);
+%     plot(t_dir, b4 * V_max, 'm', 'LineWidth', 1.2);
+%     plot(t_dir, b7 * V_max, 'c', 'LineWidth', 1.2);
+%     grid on;
+%     legend('Tensión V', 'Bit 1', 'Bit 4', 'Bit 7', 'Location', 'best');
+%     title('Fase V y Estados de Llaves [Bits 1, 4, 7]');
+%     xlabel('Tiempo [s]'); ylabel('Amplitud'); xlim([0 max(t)]);
+%     if max(t) > 0.04, xlim([0 0.04]); end
+% 
+%     % Fase W: Bits 2, 5, 8 vs Tensión W
+%     figure('Name', 'Fase W y Estados de Llaves', 'Color', 'w', 'WindowState', 'maximized');
+%     plot(t, w, 'b', 'LineWidth', 1.5); hold on;
+%     plot(t_dir, b2 * V_max, 'k', 'LineWidth', 1.2);
+%     plot(t_dir, b5 * V_max, 'm', 'LineWidth', 1.2);
+%     plot(t_dir, b8 * V_max, 'c', 'LineWidth', 1.2);
+%     grid on;
+%     legend('Tensión W', 'Bit 2', 'Bit 5', 'Bit 8', 'Location', 'best');
+%     title('Fase W y Estados de Llaves [Bits 2, 5, 8]');
+%     xlabel('Tiempo [s]'); ylabel('Amplitud'); xlim([0 max(t)]);
+%     if max(t) > 0.04, xlim([0 0.04]); end
+% end

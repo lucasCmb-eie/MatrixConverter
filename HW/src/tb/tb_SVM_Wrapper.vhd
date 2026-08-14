@@ -49,19 +49,36 @@ architecture Behavioral of tb_SVM_Wrapper is
     signal Angle_Vi : unsigned(10 downto 0);-- Salida del diente de sierra 50Hz
     signal Angle_Io : unsigned(10 downto 0);-- Salida del diente de sierra variable
     
+    signal test_beta_i : std_logic_vector(10 downto 0);
+    signal test_al_o : std_logic_vector(10 downto 0);
     signal w_direcciones : std_logic_vector(17 downto 0); --Coeficientes de la matriz de conmutacion
     signal w_trigger : std_logic;
     signal w_ClarkValido_V : std_logic;
     signal w_ClarkValido_I : std_logic;
 
-begin
+    --Señales NCO test de Alfa_o
     
+    -- Acumulador de 32 bits para alta precisión
+    signal phase_accumulator : unsigned(31 downto 0) := (others => '0');
+    
+    -- Palabra de sintonía (FTW) para 60 Hz con Clock de 10 MHz:
+    -- Fórmula: (60 Hz * 2^32) / 10_000_000 = 25770
+    constant FREQ_TUNING_WORD : unsigned(31 downto 0) := to_unsigned(25770, 32); --60Hz
+
+    -- =========================================================
+    -- NCO IDEAL PARA LA RED DE ENTRADA (50 Hz)
+    -- =========================================================
+    signal phase_acc_red : unsigned(31 downto 0) := (others => '0');
+    constant FREQ_WORD_50HZ : unsigned(31 downto 0) := to_unsigned(21475, 32); -- Para 10 MHz
+
+begin
+
     modulador_core : entity work.SVM_wrapper
         port map(
             i_clk    => clk, 
             i_enable => enable_SVM,
-            i_al_o   => STD_LOGIC_VECTOR(Angle_Vi), 
-            i_be_i   => STD_LOGIC_VECTOR(Angle_Vi), 
+            i_al_o   => test_al_o, 
+            i_be_i   => test_beta_i, 
             i_q_i    => q_value,  
             i_phi_i  => phi_value, 
 
@@ -181,7 +198,43 @@ begin
             -- wait for 90ms;
             -- alph_O <= Sierra_angle_Var;
             wait;
-        end process InitTest;
+    end process InitTest;
+
+
+
+    -- Generador de Rampa Ideal (NCO) para 60Hz
+    process(clk)
+    begin
+        if rising_edge(clk) then
+            if rst = '1' then
+                phase_accumulator <= (others => '0');
+            else
+                -- Incremento lineal perfecto en cada ciclo de reloj
+                phase_accumulator <= phase_accumulator + FREQ_TUNING_WORD;
+            end if;
+        end if;
+    end process;
+
+    -- Extracción del ángulo de 11 bits para la salida (i_al_o)
+    -- Toma los bits más significativos [31 hasta 21] y los mapea de 0 a 2047
+    test_al_o <= std_logic_vector(phase_accumulator(31 downto 21));
+
+
+    --NCO para 50Hz
+    process(clk)
+    begin
+        if rising_edge(clk) then
+            if rst = '1' then
+                phase_acc_red <= (others => '0');
+            else
+                phase_acc_red <= phase_acc_red - FREQ_WORD_50HZ;
+            end if;
+        end if;
+    end process;
+
+    test_beta_i <= std_logic_vector(phase_acc_red(31 downto 21) + to_unsigned(512, 11));
+
+
 
     -- ========================================================================
     -- PROCESO DE LOGGING A CSV (Muestreo @ 5MHz)
@@ -201,76 +254,77 @@ begin
         variable v_real_U : real;
         variable v_real_V : real;
         variable v_real_W : real;
-    begin
-        -- 1. Escribir Encabezado
-        write(row, string'("Muestra,Tension_U,Tension_V,Tension_W"));
-        writeline(file_handler, row);
-
-        -- 2. Bucle principal
-        loop
-            wait until rising_edge(clk);
-            
-            -- Conversión de Q8.24 (std_logic_vector) a REAL usando fixed_pkg
-            -- Usamos las constantes ya definidas en tu código [cite: 4]
-            v_real_U := to_real(to_sfixed(tension_SVM_U, INT_BITS-1, -FRAC_BITS));
-            v_real_V := to_real(to_sfixed(tension_SVM_V, INT_BITS-1, -FRAC_BITS));
-            v_real_W := to_real(to_sfixed(tension_SVM_W, INT_BITS-1, -FRAC_BITS));
-
-            -- Columna 1: Indice de muestra (equivale a pasos de 200ns)
-            write(row, v_muestra_idx);
-            write(row, string'(","));
-            
-            -- Columna 2: U
-            write(row, v_real_U);
-            write(row, string'(","));
-            
-            -- Columna 3: V
-            write(row, v_real_V);
-            write(row, string'(","));
-            
-            -- Columna 4: W
-            write(row, v_real_W);
-            
+        begin
+            -- 1. Escribir Encabezado
+            write(row, string'("Muestra,Tension_U,Tension_V,Tension_W"));
             writeline(file_handler, row);
-            
-            v_muestra_idx := v_muestra_idx + 1;
 
-            
-        end loop;
+            -- 2. Bucle principal
+            loop
+                wait until rising_edge(clk);
+                
+                -- Conversión de Q8.24 (std_logic_vector) a REAL usando fixed_pkg
+                -- Usamos las constantes ya definidas en tu código [cite: 4]
+                v_real_U := to_real(to_sfixed(tension_SVM_U, INT_BITS-1, -FRAC_BITS));
+                v_real_V := to_real(to_sfixed(tension_SVM_V, INT_BITS-1, -FRAC_BITS));
+                v_real_W := to_real(to_sfixed(tension_SVM_W, INT_BITS-1, -FRAC_BITS));
+
+                -- Columna 1: Indice de muestra (equivale a pasos de 200ns)
+                write(row, v_muestra_idx);
+                write(row, string'(","));
+                
+                -- Columna 2: U
+                write(row, v_real_U);
+                write(row, string'(","));
+                
+                -- Columna 3: V
+                write(row, v_real_V);
+                write(row, string'(","));
+                
+                -- Columna 4: W
+                write(row, v_real_W);
+                
+                writeline(file_handler, row);
+                
+                v_muestra_idx := v_muestra_idx + 1;
+
+                
+            end loop;
     end process gen_csv_5MHz;
+    
     gen_w_direcciones_csv: process
         file file_w : text open write_mode is "F:\\FPGA\\Potencia FPGA\\MatrixConverter\\SW\\matlab\\w_direcciones_log.csv";
         variable row : line;
         variable v_idx : integer := 0;
         variable v_bin_str : string(1 to 18);
         variable i : integer;
-    begin
-        -- Encabezado CSV
-        write(row, string'("Muestra,Direcciones"));
-        writeline(file_w, row);
-
-        -- Bucle de muestreo (cada rising_edge(clk))
-        loop
-            wait until rising_edge(clk);
-
-            -- Construir cadena binaria de 18 bits desde w_direcciones(17 downto 0)
-            v_bin_str := (others => '0');
-            for i in 0 to 17 loop
-                if w_direcciones(17 - i) = '1' then
-                    v_bin_str(i+1) := '1';
-                else
-                    v_bin_str(i+1) := '0';
-                end if;
-            end loop;
-
-            -- Escribir índice y valor
-            write(row, v_idx);
-            write(row, string'(","));
-            write(row, v_bin_str);
+        begin
+            -- Encabezado CSV
+            write(row, string'("Muestra,Direcciones"));
             writeline(file_w, row);
 
-            v_idx := v_idx + 1;
-        end loop;
+            -- Bucle de muestreo (cada rising_edge(clk))
+            loop
+                wait until rising_edge(clk);
+
+                -- Construir cadena binaria de 18 bits desde w_direcciones(17 downto 0)
+                v_bin_str := (others => '0');
+                for i in 0 to 17 loop
+                    if w_direcciones(17 - i) = '1' then
+                        v_bin_str(i+1) := '1';
+                    else
+                        v_bin_str(i+1) := '0';
+                    end if;
+                end loop;
+
+                -- Escribir índice y valor
+                write(row, v_idx);
+                write(row, string'(","));
+                write(row, v_bin_str);
+                writeline(file_w, row);
+
+                v_idx := v_idx + 1;
+            end loop;
     end process gen_w_direcciones_csv;
 
 end Behavioral;

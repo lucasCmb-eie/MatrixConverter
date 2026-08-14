@@ -11,15 +11,15 @@
       </db_ref>
    </db_ref_list>
    <zoom_setting>
-      <ZoomStartTime time="10.110000 us"></ZoomStartTime>
-      <ZoomEndTime time="72.210001 us"></ZoomEndTime>
-      <Cursor1Time time="61.860000 us"></Cursor1Time>
+      <ZoomStartTime time="16.666833333 ms"></ZoomStartTime>
+      <ZoomEndTime time="116.667833334 ms"></ZoomEndTime>
+      <Cursor1Time time="100.001000000 ms"></Cursor1Time>
    </zoom_setting>
    <column_width_setting>
       <NameColumnWidth column_width="202"></NameColumnWidth>
-      <ValueColumnWidth column_width="136"></ValueColumnWidth>
+      <ValueColumnWidth column_width="132"></ValueColumnWidth>
    </column_width_setting>
-   <WVObjectSize size="82" />
+   <WVObjectSize size="86" />
    <wvobject fp_name="/tb_SVM_Wrapper/modulador_core/modulador_core/i_al_o" type="array">
       <obj_property name="ElementShortName">i_al_o[10:0]</obj_property>
       <obj_property name="ObjectShortName">i_al_o[10:0]</obj_property>
@@ -36,19 +36,18 @@
       <obj_property name="ElementShortName">i_phi_i[10:0]</obj_property>
       <obj_property name="ObjectShortName">i_phi_i[10:0]</obj_property>
    </wvobject>
-   <wvobject fp_name="/tb_SVM_Wrapper/modulador_core/modulador_core/o_fin_calc_ts" type="logic">
-      <obj_property name="ElementShortName">o_fin_calc_ts</obj_property>
-      <obj_property name="ObjectShortName">o_fin_calc_ts</obj_property>
-   </wvobject>
    <wvobject fp_name="/tb_SVM_Wrapper/modulador_core/modulador_core/estado" type="array">
       <obj_property name="ElementShortName">estado[10:0]</obj_property>
       <obj_property name="ObjectShortName">estado[10:0]</obj_property>
       <obj_property name="Radix">UNSIGNEDDECRADIX</obj_property>
    </wvobject>
+   <wvobject fp_name="/tb_SVM_Wrapper/modulador_core/modulador_core/hi_bits" type="logic">
+      <obj_property name="ElementShortName">hi_bits</obj_property>
+      <obj_property name="ObjectShortName">hi_bits</obj_property>
+   </wvobject>
    <wvobject fp_name="group235" type="group">
       <obj_property name="label">Busq Cosenos</obj_property>
       <obj_property name="DisplayName">label</obj_property>
-      <obj_property name="isExpanded"></obj_property>
       <wvobject type="divider" fp_name="divider233">
          <obj_property name="label">Buscar Cosenos</obj_property>
          <obj_property name="DisplayName">label</obj_property>
@@ -70,6 +69,11 @@
          <obj_property name="ObjectShortName">cos03[8:0]</obj_property>
       </wvobject>
    </wvobject>
+   <wvobject fp_name="/tb_SVM_Wrapper/modulador_core/modulador_core/amp_parcial" type="array">
+      <obj_property name="ElementShortName">amp_parcial[17:0]</obj_property>
+      <obj_property name="ObjectShortName">amp_parcial[17:0]</obj_property>
+      <obj_property name="Radix">SIGNEDDECRADIX</obj_property>
+   </wvobject>
    <wvobject fp_name="group236" type="group">
       <obj_property name="label">Div. q/cos(phi)</obj_property>
       <obj_property name="DisplayName">label</obj_property>
@@ -87,16 +91,10 @@
          <obj_property name="ObjectShortName">res_div[9:0]</obj_property>
          <obj_property name="Radix">SIGNEDDECRADIX</obj_property>
       </wvobject>
-      <wvobject fp_name="/tb_SVM_Wrapper/modulador_core/modulador_core/amp_parcial" type="array">
-         <obj_property name="ElementShortName">amp_parcial[17:0]</obj_property>
-         <obj_property name="ObjectShortName">amp_parcial[17:0]</obj_property>
-         <obj_property name="Radix">SIGNEDDECRADIX</obj_property>
-      </wvobject>
    </wvobject>
    <wvobject fp_name="group256" type="group">
       <obj_property name="label">Prod.Cosenos Delta</obj_property>
       <obj_property name="DisplayName">label</obj_property>
-      <obj_property name="isExpanded"></obj_property>
       <wvobject type="divider" fp_name="divider237">
          <obj_property name="label">Numerador Delta</obj_property>
          <obj_property name="DisplayName">label</obj_property>
@@ -133,6 +131,7 @@
    <wvobject fp_name="/tb_SVM_Wrapper/modulador_core/modulador_core/o_direcciones" type="array">
       <obj_property name="ElementShortName">o_direcciones[17:0]</obj_property>
       <obj_property name="ObjectShortName">o_direcciones[17:0]</obj_property>
+      <obj_property name="isExpanded"></obj_property>
    </wvobject>
    <wvobject fp_name="/tb_SVM_Wrapper/modulador_core/modulador_core/op1_suma" type="array">
       <obj_property name="ElementShortName">op1_suma[10:0]</obj_property>
@@ -257,6 +256,10 @@
    <wvobject fp_name="/tb_SVM_Wrapper/modulador_core/modulador_core/sw_sel" type="array">
       <obj_property name="ElementShortName">sw_sel[8:0]</obj_property>
       <obj_property name="ObjectShortName">sw_sel[8:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_SVM_Wrapper/modulador_core/modulador_core/o_fin_calc_ts" type="logic">
+      <obj_property name="ElementShortName">o_fin_calc_ts</obj_property>
+      <obj_property name="ObjectShortName">o_fin_calc_ts</obj_property>
    </wvobject>
    <wvobject fp_name="/tb_SVM_Wrapper/modulador_core/modulador_core/dela01" type="array">
       <obj_property name="ElementShortName">dela01[9:0]</obj_property>
@@ -421,5 +424,17 @@
    <wvobject fp_name="/tb_SVM_Wrapper/modulador_core/modulador_core/mod_profp_abs" type="array">
       <obj_property name="ElementShortName">mod_profp_abs[35:0]</obj_property>
       <obj_property name="ObjectShortName">mod_profp_abs[35:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_SVM_Wrapper/test_al_o" type="array">
+      <obj_property name="ElementShortName">test_al_o[10:0]</obj_property>
+      <obj_property name="ObjectShortName">test_al_o[10:0]</obj_property>
+      <obj_property name="WaveformStyle">STYLE_ANALOG</obj_property>
+      <obj_property name="CellHeight">100</obj_property>
+   </wvobject>
+   <wvobject fp_name="/tb_SVM_Wrapper/test_beta_i" type="array">
+      <obj_property name="ElementShortName">test_beta_i[10:0]</obj_property>
+      <obj_property name="ObjectShortName">test_beta_i[10:0]</obj_property>
+      <obj_property name="WaveformStyle">STYLE_ANALOG</obj_property>
+      <obj_property name="CellHeight">100</obj_property>
    </wvobject>
 </wave_config>
