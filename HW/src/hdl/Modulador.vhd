@@ -317,113 +317,62 @@ begin
 
   --
   -- Calculo de tiempos de aplicacion de vectores no nulos
-  --
-  --    Prepara las diferencias de "al_ot" y "be_it" con PI/3 para calcular los cosenos.
-  --
+  -- Prepara las diferencias de "al_ot" y "be_it" con PI/3 para calcular los cosenos.
+  
   process (i_reloj) is
   begin
-
-    if (rising_edge(i_reloj)) then                        -- Flanco de descendente
-
+    if (rising_edge(i_reloj)) then
       case estado is
+        when "00000000000" => ram_dir <= i_phi_i;
+        when "00000000111" => op1_suma <= "11010101011"; op2_suma <= al_ot;
+        when "00000001000" => ram_dir  <= resul_suma;    op2_suma <= be_it;
+        when "00000001001" => ram_dir  <= resul_suma;    op1_suma <= "00101010101";
+        when "00000001010" => cos00    <= ram_data;      ram_dir  <= resul_suma;  op2_suma <= al_ot;
+        when "00000001011" => cos01    <= ram_data;      ram_dir  <= resul_suma;
+        when "00000001100" => cos02    <= ram_data;
+        when "00000001101" => cos03    <= ram_data;
 
-        when "00000000000" =>                             --
+        when "00000010111" =>                             -- ESTADO 23
+          calculo_end <= '1';
+          -- ARREGLO: Usamos el ABS y el mismo rango de bits que 'dela' (padding de 1 bit para llegar a 11)
+          acumul      <= '0' & mod_profp_abs (24 downto 15); 
 
-          ram_dir <= i_phi_i;
+        when "00000011000" =>                             -- ESTADO 24
+          acumul <= acumul + ('0' & mod_profp_abs (24 downto 15)); 
 
-        when "00000000111" =>                             --
+        when "00000011001" =>                             -- ESTADO 25
+          acumul <= acumul + ('0' & mod_profp_abs (24 downto 15)); 
 
-          op1_suma <= "11010101011";                      -- Carga -PI / 3 en op1_suma
-          op2_suma <= al_ot;
+        when "00000011010" =>                             -- ESTADO 26
+          acumul <= acumul + ('0' & mod_profp_abs (24 downto 15)); 
 
-        when "00000001000" =>                             --
-
-          ram_dir  <= resul_suma;                         -- Carga direccion al_ot-PI/3
-          op2_suma <= be_it;
-
-        when "00000001001" =>                             --
-
-          ram_dir  <= resul_suma;                         -- Carga direccion be_it-PI/3
-          op1_suma <= "00101010101";                      -- Carga PI / 3 en op1_suma
-
-        when "00000001010" =>                             --
-
-          cos00    <= ram_data;                           -- Lee de la memoria cos(al_ot-PI/3)
-          ram_dir  <= resul_suma;                         -- Carga direccion be_it+PI/3
-          op2_suma <= al_ot;
-
-        when "00000001011" =>                             --
-
-          cos01   <= ram_data;                            -- Lee de la memoria cos(be_it-PI/3)
-          ram_dir <= resul_suma;                          -- Carga direccion al_ot+PI/3
-
-        when "00000001100" =>                             --
-
-          cos02 <= ram_data;                              -- Lee de la memoria cos(be_it+PI/3)
-
-        when "00000001101" =>                             --
-
-          cos03 <= ram_data;                              -- Lee de la memoria cos(al_ot+PI/3)
-
-        when "00000010111" =>                             --
-
-          calculo_end <= '1';                             -- Fuerza el cambio de Ts y evita que se mezclen los vectores
-          acumul      <= mod_profp (26 downto 16);        -- Suma el primer TON
-
-        when "00000011000" =>                             --
-
-          acumul <= acumul + mod_profp (26 downto 16);    -- Suma el segundo TON
-
-        when "00000011001" =>                             --
-
-          acumul <= acumul + mod_profp (26 downto 16);    -- Suma el tercer TON
-
-        when "00000011010" =>                             --
-
-          acumul <= acumul + mod_profp (26 downto 16);    -- Suma el cuarto TON
-
-        when "00000011011" =>                             --
-
+        when "00000011011" =>                             -- ESTADO 27
+          -- 512 menos la suma de los 4 vectores activos (que es exactamente el tiempo nulo de medio ciclo)
           acumul <= "01000000000" - acumul;
 
-        when "00000011100" =>                             --
-
+        when "00000011100" =>                             -- ESTADO 28
           if (acumul(10 downto 9) = "00") then
-            -- ARREGLO: Distribución 100% Simétrica (Symmetrical Space Vector)
-            -- Suma total = 25% + 0% + 50% + 0% + 25% = 100% exacto del 'acumul'
-            
-            -- acumul(8 downto 2) es dividir por 4 (7 bits). Concatenamos 3 ceros para llegar a 10 bits.
-            dela01 <= "000" & acumul(8 downto 2);         -- T_Nulo 1 (Borde inicial) : 25%
-            dela13 <= "000" & acumul(8 downto 2);         -- T_Nulo 5 (Borde final)   : 25%
-            
-            -- Anulamos los nulos intermedios para reducir pérdidas por conmutación.
-            dela04 <= "0000000000";                       -- T_Nulo 2 (Intermedio)    : 0%
-            dela10 <= "0000000000";                       -- T_Nulo 4 (Intermedio)    : 0%
-            
-            -- acumul(8 downto 1) es dividir por 2 (8 bits). Concatenamos 2 ceros para llegar a 10 bits.
-            dela07 <= "00"  & acumul(8 downto 1);         -- T_Nulo 3 (Centro exacto) : 50%
-
+            -- ARREGLO SIMÉTRICO (SSVM): 25% bordes, 50% centro.
+            dela01 <= "000" & acumul(8 downto 2);         
+            dela13 <= "000" & acumul(8 downto 2);         
+            dela04 <= "0000000000";                       
+            dela10 <= "0000000000";                       
+            dela07 <= "00"  & acumul(8 downto 1);         
           else
-            -- Condición de seguridad por si 'acumul' se desborda
-            dela01 <= "0000000000";
-            dela13 <= "0000000000";
-            dela04 <= "0000000000";
-            dela07 <= "0000000000";
-            dela10 <= "0000000000";
+            dela01 <= (others => '0');
+            dela13 <= (others => '0');
+            dela04 <= (others => '0');
+            dela07 <= (others => '0');
+            dela10 <= (others => '0');
           end if;
 
-        when "00000011101" =>                             --
-
-          calculo_end <= '0';                             --  Habilita inicio de Ts
+        when "00000011101" =>                             -- ESTADO 29
+          calculo_end <= '0';                             
 
         when others =>
-
-          null;                                           --
-
+          null;
       end case;
-
     end if;
-
   end process;
 
   --
@@ -431,95 +380,66 @@ begin
   --
   process (i_reloj) is
   begin
-
-    if (rising_edge(i_reloj)) then                                                                                               -- Flanco de descendente
-
+    if (rising_edge(i_reloj)) then
       case estado is
-
-        when "00000001100" =>                                                                                                    -- Aqui ya esta disponible cos(al_ot-PI/3) y cos(be_it-PI/3)
-
+        when "00000001100" => 
           mod_profa <= cos00(8) & cos00(8) & cos00(8) & cos00(8) & cos00(8) & cos00(8) & cos00(8) & cos00(8) & cos00(8) & cos00;
           mod_profb <= cos01(8) & cos01(8) & cos01(8) & cos01(8) & cos01(8) & cos01(8) & cos01(8) & cos01(8) & cos01(8) & cos01;
-
-        when "00000001101" =>                                                                                                    -- Ya esta disponible cos(be_it+PI/3)
-
+        when "00000001101" => 
           procos00  <= mod_profp (17 downto 0);
           mod_profb <= cos02(8) & cos02(8) & cos02(8) & cos02(8) & cos02(8) & cos02(8) & cos02(8) & cos02(8) & cos02(8) & cos02;
-
-        when "00000001110" =>                                                                                                    -- Ya esta disponible cos(al_ot+PI/3)
-
+        when "00000001110" => 
           procos01  <= mod_profp (17 downto 0);
           mod_profa <= cos03(8) & cos03(8) & cos03(8) & cos03(8) & cos03(8) & cos03(8) & cos03(8) & cos03(8) & cos03(8) & cos03;
-
-        when "00000001111" =>                                                                                                    -- Ya esta disponible cos(al_ot+PI/3)
-
+        when "00000001111" => 
           procos03  <= mod_profp (17 downto 0);
           mod_profb <= cos01(8) & cos01(8) & cos01(8) & cos01(8) & cos01(8) & cos01(8) & cos01(8) & cos01(8) & cos01(8) & cos01;
-
-        when "00000010000" =>                                                                                                    -- Ya esta disponible cos(al_ot+PI/3)
-
+        when "00000010000" => 
           procos02 <= mod_profp (17 downto 0);
 
-        when "00000010101" =>                                                                                                    -- Division ajuste del resultado
-
+        when "00000010101" =>                             -- ESTADO 21 (División a factor escalar)
           mod_profa <= amp_parcial;
-          mod_profb <= "000000001001001111";                                                                                     -- 2/sqrt(3) = 1,15470053837  bit(9) tiene el peso de 1 = 2^0
+          mod_profb <= "000000001001001111";              -- 2/sqrt(3)
 
-        when "00000010110" =>                                                                                                    -- a partir de aqui se aplica a los tiempos de ON
-
+        when "00000010110" =>                             -- ESTADO 22 (Aplica factor común)
           mod_profa <= mod_profp (26 downto 9);
-          mod_profb <= procos00;
+          mod_profb <= procos00;                          -- ARREGLO: Ya no sobreescribimos. Dejamos que multiplique.
 
-       -- Usamos ABS, y mantenemos la protección de hi_bits por seguridad
+        when "00000010111" =>                             -- ESTADO 23 (ARREGLO: Faltaba este estado)
           if (hi_bits = '1') then 
-            dela02 <= "1111111111"; 
-            dela12 <= "1111111111"; 
+            dela02 <= "1111111111"; dela12 <= "1111111111"; 
           else
-            -- AQUI EL CAMBIO: Usamos mod_profp_abs en lugar de mod_profp
-            dela02 <= mod_profp_abs (24 downto 15);
-            dela12 <= mod_profp_abs (24 downto 15);
+            dela02 <= mod_profp_abs (24 downto 15); dela12 <= mod_profp_abs (24 downto 15);
           end if;
-          mod_profb <= procos01;
+          mod_profb <= procos01;                          -- Prepara la siguiente multiplicación
 
-        when "00000011000" =>
+        when "00000011000" =>                             -- ESTADO 24
           if (hi_bits = '1') then 
-            dela03 <= "1111111111"; 
-            dela11 <= "1111111111"; 
+            dela03 <= "1111111111"; dela11 <= "1111111111"; 
           else
-            dela03 <= mod_profp_abs (24 downto 15); -- Cambio aquí
-            dela11 <= mod_profp_abs (24 downto 15); -- Cambio aquí
+            dela03 <= mod_profp_abs (24 downto 15); dela11 <= mod_profp_abs (24 downto 15);
           end if;
           mod_profb <= procos02;
-          
-        when "00000011001" =>                                                                                                    --
 
-          if (hi_bits = '0') then
-            dela05 <= mod_profp_abs (24 downto 15);                                                                                  -- Toma el tercer TON
-            dela09 <= mod_profp_abs (24 downto 15);                                                                                  -- Espeja el tercer TON
+        when "00000011001" =>                             -- ESTADO 25
+          if (hi_bits = '1') then
+            dela05 <= "1111111111"; dela09 <= "1111111111";
           else
-            dela05 <= "1111111111";                                                                                              -- Toma el tercer TON
-            dela09 <= "1111111111";                                                                                              -- Espeja el tercer TON
+            dela05 <= mod_profp_abs (24 downto 15); dela09 <= mod_profp_abs (24 downto 15);
           end if;
           mod_profb <= procos03;
 
-        when "00000011010" =>                                                                                                    --
-
-          if (hi_bits = '0') then
-            dela06 <= mod_profp_abs (24 downto 15);                                                                                  -- Toma el cuarto TON
-            dela08 <= mod_profp_abs (24 downto 15);                                                                                  -- Espeja el cuarto TON
+        when "00000011010" =>                             -- ESTADO 26
+          if (hi_bits = '1') then
+            dela06 <= "1111111111"; dela08 <= "1111111111";
           else
-            dela06 <= "1111111111";                                                                                              -- Toma el cuarto TON
-            dela08 <= "1111111111";                                                                                              -- Espeja el cuarto TON
+            dela06 <= mod_profp_abs (24 downto 15); dela08 <= mod_profp_abs (24 downto 15);
           end if;
 
         when others =>
-
-          null;                                                                                                                  --
-
+          null;
       end case;
-
     end if;
-
   end process;
 
   --
