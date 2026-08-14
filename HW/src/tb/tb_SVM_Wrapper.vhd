@@ -49,7 +49,6 @@ architecture Behavioral of tb_SVM_Wrapper is
     signal Angle_Vi : unsigned(10 downto 0);-- Salida del diente de sierra 50Hz
     signal Angle_Io : unsigned(10 downto 0);-- Salida del diente de sierra variable
     
-    signal test_beta_i : std_logic_vector(10 downto 0);
     signal test_al_o : std_logic_vector(10 downto 0);
     signal w_direcciones : std_logic_vector(17 downto 0); --Coeficientes de la matriz de conmutacion
     signal w_trigger : std_logic;
@@ -65,20 +64,14 @@ architecture Behavioral of tb_SVM_Wrapper is
     -- Fórmula: (60 Hz * 2^32) / 10_000_000 = 25770
     constant FREQ_TUNING_WORD : unsigned(31 downto 0) := to_unsigned(25770, 32); --60Hz
 
-    -- =========================================================
-    -- NCO IDEAL PARA LA RED DE ENTRADA (50 Hz)
-    -- =========================================================
-    signal phase_acc_red : unsigned(31 downto 0) := (others => '0');
-    constant FREQ_WORD_50HZ : unsigned(31 downto 0) := to_unsigned(21475, 32); -- Para 10 MHz
-
 begin
 
     modulador_core : entity work.SVM_wrapper
         port map(
             i_clk    => clk, 
             i_enable => enable_SVM,
-            i_al_o   => test_al_o, 
-            i_be_i   => test_beta_i, 
+            i_al_o   => test_al_o,
+            i_be_i   => STD_LOGIC_VECTOR(Angle_Vi),
             i_q_i    => q_value,  
             i_phi_i  => phi_value, 
 
@@ -153,8 +146,8 @@ begin
             rst   => rst,
             start   => w_ClarkValido_V, 
 
-            x_in => signed(Clark_beta_Vi),
-            y_in => signed(Clark_alfa_Vi),
+            x_in => signed(Clark_alfa_Vi),
+            y_in => signed(Clark_beta_Vi),
 
             angle_out => Angle_Vi,
             done => open
@@ -166,8 +159,8 @@ begin
             rst   => rst,
             start   => w_ClarkValido_I, 
 
-            x_in => signed(Clark_beta_Io),
-            y_in => signed(Clark_alfa_Io),
+            x_in => signed(Clark_alfa_Io),
+            y_in => signed(Clark_beta_Io),
 
             angle_out => Angle_Io,
             done => open
@@ -219,30 +212,13 @@ begin
     -- Toma los bits más significativos [31 hasta 21] y los mapea de 0 a 2047
     test_al_o <= std_logic_vector(phase_accumulator(31 downto 21));
 
-
-    --NCO para 50Hz
-    process(clk)
-    begin
-        if rising_edge(clk) then
-            if rst = '1' then
-                phase_acc_red <= (others => '0');
-            else
-                phase_acc_red <= phase_acc_red - FREQ_WORD_50HZ;
-            end if;
-        end if;
-    end process;
-
-    test_beta_i <= std_logic_vector(phase_acc_red(31 downto 21) + to_unsigned(512, 11));
-
-
-
     -- ========================================================================
     -- PROCESO DE LOGGING A CSV (Muestreo @ 5MHz)
     -- ========================================================================
     -- Asegúrate de incluir 'use std.textio.all;' antes de la entity si no está.
     
     gen_csv_5MHz: process
-        file file_handler : text open write_mode is "F:\FPGA\Potencia FPGA\MatrixConverter\SW\matlab\Clk10M_test50Hz_Simetrico.csv";
+        file file_handler : text open write_mode is "F:\FPGA\Potencia FPGA\MatrixConverter\SW\matlab\Clk10M_50i_60o_Simetrico.csv";
         variable row      : line;
         
         -- Contadores y control
