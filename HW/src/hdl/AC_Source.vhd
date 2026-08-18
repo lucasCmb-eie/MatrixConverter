@@ -20,10 +20,16 @@ end AC_Source;
 
 architecture Behavioral of AC_Source is
 
-    -- Constantes para las fases
-    constant PHASE_0   : unsigned(31 downto 0) := x"00000000";
-    constant PHASE_120 : unsigned(31 downto 0) := x"55555555";  -- 120°
-    constant PHASE_240 : unsigned(31 downto 0) := x"AAAAAAA9";  -- 240° (≈ 2863311530)
+    -- Constantes para las fases.
+    -- Secuencia POSITIVA (U -> V -> W): con una tabla de SENOS y la transformada de Clark
+    -- del proyecto (alfa = 2/3*(U - (V+W)/2), beta = 1/sqrt(3)*(V - W)) hace falta
+    --      U = sin(t),  V = sin(t - 120°),  W = sin(t + 120°)
+    -- que da alfa = sin(t), beta = -cos(t), o sea un vector e^j(t - PI/2) que gira en
+    -- sentido directo. Si se asigna V = +120° y W = +240° el vector gira al reves
+    -- (secuencia negativa), que es lo que tenia este bloque antes.
+    constant PHASE_0    : unsigned(31 downto 0) := x"00000000";
+    constant PHASE_N120 : unsigned(31 downto 0) := x"AAAAAAA9";  -- -120° (= 240°)
+    constant PHASE_P120 : unsigned(31 downto 0) := x"55555555";  -- +120°
 
     --Declaración de componenete padre
     component sine_generator is
@@ -62,7 +68,7 @@ begin
 
     Linea_V: sine_generator
         generic map (
-            PHASE_INITIAL => PHASE_120
+            PHASE_INITIAL => PHASE_N120
         )
         port map (
             clk   => i_clk,
@@ -74,7 +80,7 @@ begin
 
     Linea_W: sine_generator
         generic map (
-            PHASE_INITIAL => PHASE_240
+            PHASE_INITIAL => PHASE_P120
         )
         port map (
             clk   => i_clk,
