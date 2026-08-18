@@ -129,6 +129,26 @@ architecture behavioral of modulador is
 
   signal mod_profp_abs : std_logic_vector(35 downto 0);
 
+  --
+  -- NOTA: aca vivio una compensacion del retardo de muestreo. Los angulos se muestrean
+  -- en los estados 0 a 5 pero el patron se aplica centrado en el ~1039, o sea con medio
+  -- Ts de atraso; el de be_i es mayor todavia porque viene de TransformadaClark +
+  -- CORDIC_atan2 y su resultado se consume recien en la ventana siguiente.
+  --
+  -- Se implemento, se barrio el adelanto de 0 a 4 medios Ts y se MIDIO que no sirve:
+  -- el optimo es NO compensar. Sobre la tension de salida (60 Hz in, 50 Hz out,
+  -- q = 180/256), la banda de f_in - f_out paso de 0,17 % sin compensar a 0,25 % con
+  -- medio Ts y a 0,71 % con 1,5 Ts; la de 2*f_in + f_out, de 0,16 % a 1,11 %.
+  --
+  -- El motivo es que en la formulacion de Casadei la tension de salida vale
+  -- q*V_i*e^(j*al_o) por construccion mientras los duty sumen bien: be_i entra en el
+  -- reparto entre configuraciones para darle forma a la CORRIENTE DE ENTRADA, y a la
+  -- salida llega recien en segundo orden. El angulo de entrada es poco critico, y
+  -- adelantarlo solo agrega error donde casi no habia.
+  --
+  -- No reimplementar sin una medicion que lo justifique.
+  --
+
   component red_sector is
     port (
       al_o   : in    std_logic_vector(10 downto 0);
@@ -312,8 +332,10 @@ begin
 
   mod_profp <= ieee.std_logic_arith."*"(signed(mod_profa), signed(mod_profb)); --  MUL3
   
-  -- Solo activa hi_bits si el SIGNO es positivo (bit 35='0') Y hay bits altos encendidos
-  hi_bits <= '1' when (mod_profp(35) = '0' and mod_profp(34 downto 25) /= "0000000000") else '0';
+  -- Solo activa hi_bits si el SIGNO es positivo (bit 35='0') Y hay bits altos encendidos.
+  -- ARREGLO DE ESCALA: los 'dela' se toman de mod_profp_abs(25 downto 16), asi que el
+  -- desborde de los 10 bits son los bits 34 a 26, no 34 a 25.
+  hi_bits <= '1' when (mod_profp(35) = '0' and mod_profp(34 downto 26) /= "000000000") else '0';
 
   --
   -- Calculo de tiempos de aplicacion de vectores no nulos
@@ -334,17 +356,25 @@ begin
 
         when "00000010111" =>                             -- ESTADO 23
           calculo_end <= '1';
-          -- ARREGLO: Usamos el ABS y el mismo rango de bits que 'dela' (padding de 1 bit para llegar a 11)
-          acumul      <= '0' & mod_profp_abs (24 downto 15); 
+          -- Usamos el ABS y el mismo rango de bits que 'dela' (padding de 1 bit para llegar a 11).
+          --
+          -- ARREGLO DE ESCALA: la ventana era (24 downto 15) y daba una ganancia de 2. Medido
+          -- por dos caminos independientes sobre 0,2 s de simulacion con q = 90/256:
+          --   - fundamental de salida 0,69624 contra 0,35156 esperado  ->  1,980
+          --   - tiempo activo 0,745 contra G*(2/sqrt(3))*q*<P> = G*0,3702  ->  2,013
+          --     (con <P> = <cos(al_ot)>*<cos(be_it)> = (3/pi)^2 = 0,9118)
+          -- Con la ventana vieja el modulador saturaba en q = 0,433 y la mitad superior del
+          -- rango de i_q_i era inutilizable.
+          acumul      <= '0' & mod_profp_abs (25 downto 16);
 
         when "00000011000" =>                             -- ESTADO 24
-          acumul <= acumul + ('0' & mod_profp_abs (24 downto 15)); 
+          acumul <= acumul + ('0' & mod_profp_abs (25 downto 16)); 
 
         when "00000011001" =>                             -- ESTADO 25
-          acumul <= acumul + ('0' & mod_profp_abs (24 downto 15)); 
+          acumul <= acumul + ('0' & mod_profp_abs (25 downto 16)); 
 
         when "00000011010" =>                             -- ESTADO 26
-          acumul <= acumul + ('0' & mod_profp_abs (24 downto 15)); 
+          acumul <= acumul + ('0' & mod_profp_abs (25 downto 16)); 
 
         when "00000011011" =>                             -- ESTADO 27
           -- Tiempo nulo de MEDIO ciclo (N) = semiperiodo menos la suma de los 4 vectores activos.
@@ -412,7 +442,7 @@ begin
           if (hi_bits = '1') then 
             dela02 <= "1111111111"; dela12 <= "1111111111"; 
           else
-            dela02 <= mod_profp_abs (24 downto 15); dela12 <= mod_profp_abs (24 downto 15);
+            dela02 <= mod_profp_abs (25 downto 16); dela12 <= mod_profp_abs (25 downto 16);
           end if;
           mod_profb <= procos01;                          -- Prepara la siguiente multiplicación
 
@@ -420,7 +450,7 @@ begin
           if (hi_bits = '1') then 
             dela03 <= "1111111111"; dela11 <= "1111111111"; 
           else
-            dela03 <= mod_profp_abs (24 downto 15); dela11 <= mod_profp_abs (24 downto 15);
+            dela03 <= mod_profp_abs (25 downto 16); dela11 <= mod_profp_abs (25 downto 16);
           end if;
           mod_profb <= procos02;
 
@@ -428,7 +458,7 @@ begin
           if (hi_bits = '1') then
             dela05 <= "1111111111"; dela09 <= "1111111111";
           else
-            dela05 <= mod_profp_abs (24 downto 15); dela09 <= mod_profp_abs (24 downto 15);
+            dela05 <= mod_profp_abs (25 downto 16); dela09 <= mod_profp_abs (25 downto 16);
           end if;
           mod_profb <= procos03;
 
@@ -436,7 +466,7 @@ begin
           if (hi_bits = '1') then
             dela06 <= "1111111111"; dela08 <= "1111111111";
           else
-            dela06 <= mod_profp_abs (24 downto 15); dela08 <= mod_profp_abs (24 downto 15);
+            dela06 <= mod_profp_abs (25 downto 16); dela08 <= mod_profp_abs (25 downto 16);
           end if;
 
         when others =>
