@@ -1,323 +1,312 @@
-%% Configuraci�n Inicial
+%% ========================================================================
+%  Analisis de la simulacion del conversor matricial (SVM)
+%
+%  Lee los CSV que escribe tb_SVM_Wrapper.vhd via textio y grafica:
+%    - tensiones de salida crudas y su espectro
+%    - corrientes en una carga RL por fase (modelo del motor)
+%    - trayectoria del vector espacial en el plano alfa-beta
+%    - angulo y frecuencia instantanea de rotacion del vector
+%    - estados de las llaves de la matriz de conmutacion
+%
+%  Sin acentos a proposito: los CSV y este archivo viajan entre Vivado,
+%  Windows y MATLAB y los caracteres extendidos se corrompen.
+% =========================================================================
+
 clear; clc; close all;
 
-% Par�metros de simulaci�n (Coinciden con tu VHDL)
-filename = 'Clk10M_60i_50o_Simetrico.csv';
-filename_dir = 'w_direcciones_log.csv';
-Fs = 10e6;           % Frecuencia de muestreo: 5 MHz (Nota: 10e6 son 10 MHz, ajustar si es necesario)
-Ts = 1/Fs;           % Periodo de muestreo: 100 ns
+%% ------------------------- Parametros -----------------------------------
 
-%% Importaci�n de Datos - Tensiones
-% Verificamos si existe el archivo antes de cargar
-if ~isfile(filename)
-    error('El archivo %s no se encuentra en el directorio actual.', filename);
+ARCH_TENSIONES   = 'Clk10M_60i_50o_Simetrico.csv';
+ARCH_DIRECCIONES = 'w_direcciones_log.csv';
+
+Fs = 10e6;              % muestreo del testbench: 1 muestra por flanco de clk
+Ts = 1/Fs;
+
+F_OUT = 50;             % frecuencia comandada a la salida (rampa i_al_o) [Hz]
+F_IN  = 60;             % frecuencia de la fuente trifasica de entrada [Hz]
+
+R_CARGA = 1.2;          % carga RL por fase [Ohm]
+L_CARGA = 0.012;        % [H]
+
+I_PICO_OBJETIVO = 1.0;  % pico deseado para la carga RL reescalada [A]
+
+T_TRANSITORIO = 0.040;  % tramo inicial descartado en los graficos de regimen [s]
+T_ZOOM        = 0.002;  % ancho de las ventanas de zoom [s]
+F_MAX_PLOT    = 1000;   % tope del eje de frecuencia en las FFT [Hz]
+VENT_SUAVIZADO = 200e-6;% ventana de movmean para matar el ripple de PWM [s]
+
+%% ------------------------- Carga de datos -------------------------------
+
+if ~isfile(ARCH_TENSIONES)
+    error('No se encuentra %s en el directorio actual.', ARCH_TENSIONES);
 end
 
-fprintf('Leyendo archivo CSV principal... (esto puede tardar unos segundos)\n');
-data = readtable(filename);
+fprintf('Leyendo %s ...\n', ARCH_TENSIONES);
+datos = readtable(ARCH_TENSIONES);
 
-% Extracci�n de vectores
-n_muestras = data.Muestra;
-u = data.Tension_U;
-v = data.Tension_V;
-w = data.Tension_W;
+u = datos.Tension_U;
+v = datos.Tension_V;
+w = datos.Tension_W;
+t = datos.Muestra * Ts;
 
-% Generaci�n del vector de tiempo real
-t = n_muestras * Ts;
+N = numel(t);
+fprintf('  %d muestras, %.4f s simulados\n', N, t(end));
 
-%% Importaci�n de Datos - Direcciones
-if isfile(filename_dir)
-    fprintf('Leyendo archivo de direcciones...\n');
-    data_dir = readtable(filename_dir);
-    
-    % CORRECCI�N: Multiplicamos por Ts para que est� en segundos y no en n�mero de muestra
-    t_dir = data_dir{:, 1} * Ts; 
-    direccion = data_dir{:, 2};
-else
-    warning('El archivo %s no se encuentra. Se omitir� su gr�fica.', filename_dir);
-    t_dir = [];
-    direccion = [];
-end
+idx_ss = t >= T_TRANSITORIO;   % mascara de regimen permanente
 
-%% Grafico 1: Dominio del Tiempo (Vista General)
-figure('Name', 'Salida SVM - Dominio del Tiempo', 'Color', 'w');
-subplot(4,1,1);
-plot(t, u, 'r', 'LineWidth', 1); hold on;
-plot(t, v, 'g', 'LineWidth', 1);
-plot(t, w, 'b', 'LineWidth', 1);
-grid on;
-legend('Fase U', 'Fase V', 'Fase W');
-xlabel('Tiempo [s]');
-ylabel('Amplitud [V]');
-title('Tensiones Trif�sicas SVM (Simulaci�n VHDL)');
-xlim([0 max(t)]);
+%% ------------------------- Tensiones de salida --------------------------
 
-% Zoom a un par de ciclos para ver detalle
-subplot(4,1,2);
-plot(t, u, 'r', 'LineWidth', 1.2);
-grid on;
-xlabel('Tiempo [s]');
-ylabel('Amplitud [V]');
-title('Zoom Fase U (Detalle de Conmutaci�n)');
-xlim([0 max(t)]); 
+figure('Name', 'Tensiones de salida del SVM', 'Color', 'w');
 
-subplot(4,1,3);
-plot(t, v, 'g', 'LineWidth', 1.2);
-grid on;
-xlabel('Tiempo [s]');
-ylabel('Amplitud [V]');
-title('Zoom Fase V (Detalle de Conmutaci�n)');
-xlim([0 max(t)]);
+subplot(2,1,1);
+plot(t, u, 'r', t, v, 'g', t, w, 'b');
+grid on; legend('U','V','W'); xlim([0 t(end)]);
+xlabel('Tiempo [s]'); ylabel('Amplitud [V]');
+title('Tensiones trifasicas a la salida de la matriz (crudas, conmutadas)');
 
-subplot(4,1,4);
-plot(t, w, 'b', 'LineWidth', 1.2);
-grid on;
-xlabel('Tiempo [s]');
-ylabel('Amplitud [V]');
-title('Zoom Fase W (Detalle de Conmutaci�n)');
-xlim([0 max(t)]);
+t0 = T_TRANSITORIO;
+subplot(2,1,2);
+plot(t, u, 'r', t, v, 'g', t, w, 'b');
+grid on; legend('U','V','W'); xlim([t0 t0+T_ZOOM]);
+xlabel('Tiempo [s]'); ylabel('Amplitud [V]');
+title(sprintf('Zoom de %g ms: detalle de conmutacion', T_ZOOM*1e3));
 
-%% Grafico Adicional: w_direcciones_log (Bits separados - Estilo Analizador L�gico - 9 bits)
-if ~isempty(t_dir) && ~isempty(direccion)
-    % Ajustamos la altura de la figura para 9 bits
-    figure('Name', 'Evoluci�n de Direcciones (Desglose por Bits)', 'Color', 'w', 'Position', [100, 100, 800, 500]);
-    hold on;
-    
-    num_bits = 9; % Actualizado a 9 bits
-    offset_step = 1.5; % Distancia vertical entre cada bit
-    
-    % Convertimos a entero sin signo para asegurar que bitget funcione correctamente
-    dir_uint = uint32(direccion);
-    
-    ytick_pos = zeros(1, num_bits);
-    ytick_labels = cell(1, num_bits);
-    
-    % Bucle para extraer y graficar cada bit desde el LSB (0) hasta el MSB (8)
-    for i = 0:(num_bits-1)
-        % bitget usa �ndice basado en 1 (por eso i+1)
-        bit_val = double(bitget(dir_uint, i + 1));
-        
-        % Calculamos la posici�n base de este bit
-        base_y = i * offset_step;
-        
-        % Graficamos el bit sum�ndole su posici�n base
-        plot(t_dir, bit_val + base_y, 'b', 'LineWidth', 1.2);
-        
-        % Guardamos la posici�n para las etiquetas del eje Y
-        ytick_pos(i+1) = base_y + 0.5;
-        ytick_labels{i+1} = ['Bit ', num2str(i)];
-    end
-    
-    grid on;
-    xlabel('Tiempo [s]');
-    
-    % Ajustamos el eje Y para mostrar el nombre de cada bit
-    yticks(ytick_pos);
-    yticklabels(ytick_labels);
-    
-    title('Se�al w\_direcciones\_log (8 downto 0)'); % T�tulo actualizado
-    xlim([0 max(t_dir)]);
-    ylim([-0.5, (num_bits * offset_step)]);
-    hold off;
-end
+[f_v, P_u] = espectro(u, Fs);
 
-%% Grafico 2: An�lisis Espectral (FFT de Fase U)
-L = length(u);
-Y = fft(u);
-P2 = abs(Y/L);
-P1 = P2(1:floor(L/2)+1);
-P1(2:end-1) = 2*P1(2:end-1);
-f = Fs*(0:(L/2))/L;
+figure('Name', 'Espectro de la tension U', 'Color', 'w');
+plot(f_v, P_u, 'k'); grid on; xlim([0 F_MAX_PLOT]);
+xlabel('Frecuencia [Hz]'); ylabel('|P1(f)|');
+title('Espectro de amplitud unilateral de u(t) (con modo comun)');
 
-figure('Name', 'Espectro de Frecuencia (Fase U)', 'Color', 'w');
-plot(f, P1, 'k', 'LineWidth', 1.2);
-title('Espectro de Amplitud Unilateral de u(t)');
-xlabel('Frecuencia [Hz]');
-ylabel('|P1(f)|');
-grid on;
-xlim([0 1000]);
-
-%% 1. Definici�n de la Carga (Modelo RL por fase)
-R = 1.2;            
-L_ind = 0.012;      
-
-s = tf('s');
-G_s = 1 / (L_ind * s + R);
-fprintf('Modelo de Carga: R=%.1f Ohm, L=%.1f mH\n', R, L_ind*1000);
-
-%% 2. Discretizaci�n
-G_z = c2d(G_s, Ts, 'tustin'); 
-
-%% 3. Simulaci�n de la respuesta (Corrientes)
-fprintf('Calculando corrientes (simulando respuesta din�mica)...\n');
+%% ------------------------- Corrientes en la carga RL --------------------
+% La carga es una estrella de neutro flotante, asi que no ve el modo comun.
+% Restarlo es parte del modelo, no un artificio de graficado.
 
 v_neutro = (u + v + w) / 3;
-u_load = u - v_neutro;
-v_load = v - v_neutro;
-w_load = w - v_neutro;
+u_carga  = u - v_neutro;
+v_carga  = v - v_neutro;
+w_carga  = w - v_neutro;
 
-i_u = lsim(G_z, u_load, t);
-i_v = lsim(G_z, v_load, t);
-i_w = lsim(G_z, w_load, t);
+fprintf('Simulando carga RL: R = %.2f Ohm, L = %.1f mH ...\n', R_CARGA, L_CARGA*1e3);
+[i_u, i_v, i_w] = filtrar_RL(u_carga, v_carga, w_carga, R_CARGA, L_CARGA, t, Ts);
 
-%% 4. Visualizaci�n de Resultados
-figure('Name', 'Corrientes Resultantes en Carga RL', 'Color', 'w');
-plot(t, i_u, 'r', 'LineWidth', 1.2); hold on;
-plot(t, i_v, 'g', 'LineWidth', 1.2);
-plot(t, i_w, 'b', 'LineWidth', 1.2);
-grid on;
-legend('i_U', 'i_V', 'i_W');
-xlabel('Tiempo [s]');
-ylabel('Corriente [A]');
-title('Corrientes Trif�sicas Filtradas por Carga RL');
-xlim([0 max(t)]);
-
-figure('Name', 'Zoom Ripple Corrientes', 'Color', 'w');
-plot(t, i_u, 'r', 'LineWidth', 1.5);
-grid on;
-title('Zoom Corriente Fase U (Ripple de PWM visible)');
-ylabel('Corriente [A]');
-xlabel('Tiempo [s]');
-xlim([0.07 0.072]);
-
-%% Grafico 2b: An�lisis Espectral (FFT de Corriente Fase U)
-L_i = length(i_u);
-Y_i = fft(i_u);
-P2_i = abs(Y_i/L_i);
-P1_i = P2_i(1:floor(L_i/2)+1);
-P1_i(2:end-1) = 2*P1_i(2:end-1);
-f_i = Fs*(0:(L_i/2))/L_i;
-
-figure('Name', 'Espectro de Frecuencia (Corriente Fase U)', 'Color', 'w');
-plot(f_i, P1_i, 'k', 'LineWidth', 1.2);
-title('Espectro de Amplitud Unilateral de i_u(t)');
-xlabel('Frecuencia [Hz]');
-ylabel('|P1(f)|');
-grid on;
-xlim([0 1000]);
-
-%% 5. Verificaci�n opcional: Plano Alfa-Beta (C�rculo de Clarke)
-i_alpha = (2/3) * (i_u - 0.5*i_v - 0.5*i_w);
-i_beta  = (2/3) * (0 + (sqrt(3)/2)*i_v - (sqrt(3)/2)*i_w);
-
-figure('Name', 'Trayectoria Vectorial de Corriente', 'Color', 'w');
-plot(i_alpha, i_beta, 'k', 'LineWidth', 1.5);
-grid on; axis equal;
-title('Trayectoria del Vector Espacial de Corriente (Plano \alpha\beta)');
-xlabel('i_\alpha [A]');
-ylabel('i_\beta [A]');
-
-%% Grafico 5b: Angulo y frecuencia instantanea del vector de corriente
-theta_i = unwrap(atan2(i_beta, i_alpha));
-
-win = round(200e-6 / Ts); % Ventana de suavizado ~200us (elimina el ripple de conmutacion)
-theta_i_smooth = movmean(theta_i, win);
-
-figure('Name', 'Angulo y Frecuencia del Vector de Corriente', 'Color', 'w');
+figure('Name', 'Corrientes en la carga RL', 'Color', 'w');
 subplot(2,1,1);
-plot(t, theta_i_smooth, 'k', 'LineWidth', 1.2);
-grid on;
-xlabel('Tiempo [s]');
-ylabel('Angulo [rad]');
-title('Angulo Instantaneo (Desenrollado, Suavizado) del Vector de Corriente');
+plot(t, i_u, 'r', t, i_v, 'g', t, i_w, 'b');
+grid on; legend('i_U','i_V','i_W'); xlim([0 t(end)]);
+xlabel('Tiempo [s]'); ylabel('Corriente [A]');
+title('Corrientes trifasicas filtradas por la carga RL');
 
 subplot(2,1,2);
-f_inst = [0; diff(theta_i_smooth)] / (2*pi) * Fs;
-plot(t, f_inst, 'k', 'LineWidth', 1);
-grid on;
-xlabel('Tiempo [s]');
-ylabel('Frecuencia instantanea [Hz]');
-title('Frecuencia de Rotacion Instantanea del Vector de Corriente (suavizada)');
+plot(t, i_u, 'r', t, i_v, 'g', t, i_w, 'b');
+grid on; legend('i_U','i_V','i_W'); xlim([t0 t0+10*T_ZOOM]);
+xlabel('Tiempo [s]'); ylabel('Corriente [A]');
+title('Zoom: ripple de PWM sobre la corriente');
+
+[f_i, P_iu] = espectro(i_u, Fs);
+
+figure('Name', 'Espectro de la corriente U', 'Color', 'w');
+plot(f_i, P_iu, 'k'); grid on; xlim([0 F_MAX_PLOT]);
+xlabel('Frecuencia [Hz]'); ylabel('|P1(f)|');
+title('Espectro de amplitud unilateral de i_u(t)');
+
+%% ------------------------- Carga RL reescalada a 1 A --------------------
+% Se escalan R y L por el mismo factor, asi que R/L (y con el la constante
+% de tiempo y el filtrado de armonicos) no cambia: la forma de onda es
+% identica y solo cambia la ganancia. Se muestran los valores equivalentes
+% por si conviene dimensionar la carga real de esa manera.
+
+i_pico = max([max(abs(i_u(idx_ss))), max(abs(i_v(idx_ss))), max(abs(i_w(idx_ss)))]);
+k_esc  = I_PICO_OBJETIVO / i_pico;
+
+R_1A = R_CARGA / k_esc;
+L_1A = L_CARGA / k_esc;
+
+fprintf('Carga equivalente para %.1f A de pico: R = %.4f Ohm, L = %.2f mH\n', ...
+        I_PICO_OBJETIVO, R_1A, L_1A*1e3);
+
+figure('Name', 'Corrientes RL escaladas a 1 A de pico', 'Color', 'w');
+plot(t, i_u*k_esc, 'r', t, i_v*k_esc, 'g', t, i_w*k_esc, 'b');
+grid on; legend('i_U','i_V','i_W'); xlim([0 t(end)]);
+linea_horizontal( I_PICO_OBJETIVO, 'k--', 1.0);
+linea_horizontal(-I_PICO_OBJETIVO, 'k--', 1.0);
+xlabel('Tiempo [s]'); ylabel('Corriente [A]');
+title(sprintf('Corrientes con carga R = %.3f Ohm, L = %.2f mH (pico = %.1f A)', ...
+              R_1A, L_1A*1e3, I_PICO_OBJETIVO));
+
+%% ------------------------- Vector espacial de corriente -----------------
+
+i_alfa = (2/3) * (i_u - 0.5*i_v - 0.5*i_w);
+i_beta = (1/sqrt(3)) * (i_v - i_w);
+
+i_mod = hypot(i_alfa, i_beta);
+
+% Radio de referencia: amplitud de la componente fundamental de i_u
+[~, k_out] = min(abs(f_i - F_OUT));
+r_ref = P_iu(k_out);
+
+% --- Trayectoria completa (incluye el transitorio de arranque) -----------
+figure('Name', 'Trayectoria del vector de corriente', 'Color', 'w');
+
+subplot(1,2,1);
+plot(i_alfa, i_beta, 'k'); grid on; axis equal;
+xlabel('i_\alpha [A]'); ylabel('i_\beta [A]');
+title('Completa (incluye el transitorio de arranque)');
+
+% --- Trayectoria en regimen, con circulo de referencia ------------------
+subplot(1,2,2);
+plot(i_alfa(idx_ss), i_beta(idx_ss), 'k'); hold on;
+ang = linspace(0, 2*pi, 512);
+plot(r_ref*cos(ang), r_ref*sin(ang), 'r--', 'LineWidth', 1.5);
+grid on; axis equal; hold off;
+legend('Trayectoria', sprintf('Circulo de referencia (%.4f A)', r_ref), ...
+       'Location', 'southoutside');
+xlabel('i_\alpha [A]'); ylabel('i_\beta [A]');
+title(sprintf('Regimen (t > %g ms)', T_TRANSITORIO*1e3));
+
+% --- Modulo del vector contra el tiempo ---------------------------------
+% Aca se lee directo lo que en el plano alfa-beta aparece como grosor del
+% anillo: si el modulo no es constante, hay batido con la entrada.
+
+vent = round(VENT_SUAVIZADO / Ts);
+i_mod_suave = movmean(i_mod, vent);
+
+mod_med = mean(i_mod(idx_ss));
+mod_min = min(i_mod_suave(idx_ss));
+mod_max = max(i_mod_suave(idx_ss));
+rizado  = 100 * (mod_max - mod_min) / (2*mod_med);
+
+figure('Name', 'Modulo del vector de corriente', 'Color', 'w');
+plot(t, i_mod, 'Color', [0.75 0.75 0.75]); hold on;
+plot(t, i_mod_suave, 'k', 'LineWidth', 1.4);
+xlim([0 t(end)]);
+linea_horizontal(mod_med, 'r--', 1.2);
+grid on; hold off;
+legend('|i| instantaneo', '|i| suavizado', 'Media en regimen', 'Location','best');
+xlabel('Tiempo [s]'); ylabel('|i| [A]');
+title(sprintf(['Modulo del vector de corriente  -  rizado +/-%.1f%% ' ...
+               '(batido esperado a %g Hz = |f_{in} - f_{out}|)'], ...
+               rizado, abs(F_IN - F_OUT)));
+
+%% ------------------------- Angulo y frecuencia de rotacion --------------
+
+theta_i = movmean(unwrap(atan2(i_beta, i_alfa)), vent);
+f_inst  = [0; diff(theta_i)] / (2*pi) * Fs;
+
+% Pendiente media en regimen: la frecuencia de rotacion real
+p = polyfit(t(idx_ss), theta_i(idx_ss), 1);
+f_medida = p(1) / (2*pi);
+
+figure('Name', 'Angulo y frecuencia del vector de corriente', 'Color', 'w');
+
+subplot(2,1,1);
+plot(t, theta_i, 'k', 'LineWidth', 1.2); grid on;
+xlabel('Tiempo [s]'); ylabel('Angulo [rad]');
+title(sprintf('Angulo desenrollado  -  pendiente en regimen = %.2f Hz (comandado %g Hz)', ...
+              f_medida, F_OUT));
+
+subplot(2,1,2);
+plot(t, f_inst, 'k'); grid on;
+xlim([0 t(end)]);
+linea_horizontal(F_OUT, 'r--', 1.2);
+xlabel('Tiempo [s]'); ylabel('Frecuencia [Hz]');
 ylim([-20 100]);
+title('Frecuencia de rotacion instantanea (suavizada)');
 
-%% Grafico 6: Tensiones vs Corrientes (Figuras Individuales)
-% Buscamos el factor de escala para que la corriente tenga la misma amplitud que la tensi�n
-V_max = max([max(abs(u)), max(abs(v)), max(abs(w))]);
-I_max = max([max(abs(i_u)), max(abs(i_v)), max(abs(i_w))]);
-escala_I = V_max / I_max;
+%% ------------------------- Resumen numerico -----------------------------
+% Lo que en los graficos se ve a ojo, medido.
 
-fprintf('Factor de escala aplicado a las corrientes para visualizaci�n: %.2f\n', escala_I);
+fprintf('\n--- Contenido espectral de la tension de salida (sin modo comun) ---\n');
+frecs = unique([0, abs(F_IN-F_OUT), F_OUT, F_IN, F_IN+F_OUT, 2*F_OUT, 3*F_OUT]);
+[~, P_ul] = espectro(u_carga, Fs);
+fprintf('  DC          : %+.6f\n', mean(u_carga));
+for fr = frecs(frecs > 0)
+    [~, kk] = min(abs(f_v - fr));
+    fprintf('  %7.1f Hz  : %.4f\n', fr, P_ul(kk));
+end
+fprintf('  Frecuencia de rotacion medida: %.2f Hz (comandada %g Hz)\n', f_medida, F_OUT);
 
-% Fase U
-figure('Name', 'Fase U: Tensi�n vs Corriente', 'Color', 'w', 'WindowState', 'maximized');
-plot(t, u, 'r', 'LineWidth', 1.2); hold on;
-plot(t, i_u * escala_I, 'k--', 'LineWidth', 1.5);
-grid on;
-legend('Tensi�n U', 'Corriente i_U (Escalada)', 'Location', 'best');
-xlabel('Tiempo [s]'); ylabel('Amplitud'); title('Fase U (Tensi�n vs Corriente)');
-xlim([0 max(t)]);
+%% ------------------------- Estados de las llaves ------------------------
+% La columna del CSV es una cadena binaria de 18 bits, pero readtable la
+% interpreta como un numero decimal cuyos digitos SON los bits. Como
+% o_direcciones(17 downto 9) esta cableado a cero, el valor nunca pasa de
+% 111111111 (~1.1e8) y entra exacto en un double, asi que se pueden extraer
+% los digitos con aritmetica. (Usar bitget sobre ese numero, como se hacia
+% antes, da basura: mezcla los bits de la representacion decimal.)
 
-% Fase V
-figure('Name', 'Fase V: Tensi�n vs Corriente', 'Color', 'w', 'WindowState', 'maximized');
-plot(t, v, 'g', 'LineWidth', 1.2); hold on;
-plot(t, i_v * escala_I, 'k--', 'LineWidth', 1.5);
-grid on;
-legend('Tensi�n V', 'Corriente i_V (Escalada)', 'Location', 'best');
-xlabel('Tiempo [s]'); ylabel('Amplitud'); title('Fase V (Tensi�n vs Corriente)');
-xlim([0 max(t)]);
+if isfile(ARCH_DIRECCIONES)
+    fprintf('\nLeyendo %s ...\n', ARCH_DIRECCIONES);
+    datos_dir = readtable(ARCH_DIRECCIONES);
+    t_dir     = datos_dir{:,1} * Ts;
+    palabra   = datos_dir{:,2};
+    if ~isnumeric(palabra)   % por si readtable la detecta como texto
+        palabra = str2double(string(palabra));
+    end
 
-% Fase W
-figure('Name', 'Fase W: Tensi�n vs Corriente', 'Color', 'w', 'WindowState', 'maximized');
-plot(t, w, 'b', 'LineWidth', 1.2); hold on;
-plot(t, i_w * escala_I, 'k--', 'LineWidth', 1.5);
-grid on;
-legend('Tensi�n W', 'Corriente i_W (Escalada)', 'Location', 'best');
-xlabel('Tiempo [s]'); ylabel('Amplitud'); title('Fase W (Tensi�n vs Corriente)');
-xlim([0 max(t)]);
+    assert(max(palabra) < 1e9, ...
+        'La palabra excede 9 digitos: los bits altos de o_direcciones ya no son cero.');
 
+    % bits(:,k) = digito k-1 (bit 0 = LSB en la columna 1)
+    bits = mod(floor(palabra ./ 10.^(0:8)), 10);
 
-% %% Grafico 7: Tensiones vs Bits de Direcci�n de la Matriz (Figuras Individuales)
-% if ~isempty(t_dir) && ~isempty(direccion)
-%     % Aseguramos variable entera para extraer bits
-%     dir_uint = uint32(direccion);
-%     % Ajustar el zoom a una ventana de 2 ms para poder ver los pulsos PWM
-%     t_start = 0.010; % Iniciar en 10 ms
-%     t_end   = 0.012; % Terminar en 12 ms
-%     
-%     % Extraemos los bits 
-%     b0 = double(bitget(dir_uint, 1));
-%     b1 = double(bitget(dir_uint, 2));
-%     b2 = double(bitget(dir_uint, 3));
-%     b3 = double(bitget(dir_uint, 4));
-%     b4 = double(bitget(dir_uint, 5));
-%     b5 = double(bitget(dir_uint, 6));
-%     b6 = double(bitget(dir_uint, 7));
-%     b7 = double(bitget(dir_uint, 8));
-%     b8 = double(bitget(dir_uint, 9));
-% 
-%     % Fase U: Bits 0, 3, 6 vs Tensi�n U
-%     figure('Name', 'Fase U y Estados de Llaves', 'Color', 'w', 'WindowState', 'maximized');
-%     plot(t, u, 'r', 'LineWidth', 1.5); hold on;
-%     plot(t_dir, b0 * V_max, 'k', 'LineWidth', 1.2);
-%     plot(t_dir, b3 * V_max, 'm', 'LineWidth', 1.2);
-%     plot(t_dir, b6 * V_max, 'c', 'LineWidth', 1.2);
-%     grid on;
-%     legend('Tensi�n U', 'Bit 0', 'Bit 3', 'Bit 6', 'Location', 'best');
-%     title('Fase U y Estados de Llaves [Bits 0, 3, 6]');
-%     xlabel('Tiempo [s]'); ylabel('Amplitud'); xlim([0 max(t)]);
-%     if max(t) > 0.04, xlim([0 0.04]); end 
-% 
-%     % Fase V: Bits 1, 4, 7 vs Tensi�n V
-%     figure('Name', 'Fase V y Estados de Llaves', 'Color', 'w', 'WindowState', 'maximized');
-%     plot(t, v, 'g', 'LineWidth', 1.5); hold on;
-%     plot(t_dir, b1 * V_max, 'k', 'LineWidth', 1.2);
-%     plot(t_dir, b4 * V_max, 'm', 'LineWidth', 1.2);
-%     plot(t_dir, b7 * V_max, 'c', 'LineWidth', 1.2);
-%     grid on;
-%     legend('Tensi�n V', 'Bit 1', 'Bit 4', 'Bit 7', 'Location', 'best');
-%     title('Fase V y Estados de Llaves [Bits 1, 4, 7]');
-%     xlabel('Tiempo [s]'); ylabel('Amplitud'); xlim([0 max(t)]);
-%     if max(t) > 0.04, xlim([0 0.04]); end
-% 
-%     % Fase W: Bits 2, 5, 8 vs Tensi�n W
-%     figure('Name', 'Fase W y Estados de Llaves', 'Color', 'w', 'WindowState', 'maximized');
-%     plot(t, w, 'b', 'LineWidth', 1.5); hold on;
-%     plot(t_dir, b2 * V_max, 'k', 'LineWidth', 1.2);
-%     plot(t_dir, b5 * V_max, 'm', 'LineWidth', 1.2);
-%     plot(t_dir, b8 * V_max, 'c', 'LineWidth', 1.2);
-%     grid on;
-%     legend('Tensi�n W', 'Bit 2', 'Bit 5', 'Bit 8', 'Location', 'best');
-%     title('Fase W y Estados de Llaves [Bits 2, 5, 8]');
-%     xlabel('Tiempo [s]'); ylabel('Amplitud'); xlim([0 max(t)]);
-%     if max(t) > 0.04, xlim([0 0.04]); end
-% end
+    % Formato de la palabra (ver matrixConmut.vhd):
+    %   bits 8..6 = fila de salida U <- [U V W]
+    %   bits 5..3 = fila de salida V <- [U V W]
+    %   bits 2..0 = fila de salida W <- [U V W]
+    salidas  = {'U','V','W'};
+    entradas = {'U','V','W'};
+    etiquetas = cell(1,9);
+    for b = 0:8
+        fila = salidas{3 - floor(b/3)};
+        col  = entradas{3 - mod(b,3)};
+        etiquetas{b+1} = sprintf('%s <- %s', fila, col);
+    end
+
+    figure('Name', 'Estados de la matriz de conmutacion', 'Color', 'w');
+    hold on;
+    paso = 1.5;
+    for b = 0:8
+        plot(t_dir, bits(:,b+1) + b*paso, 'b');
+    end
+    grid on; hold off;
+    yticks((0:8)*paso + 0.5);
+    yticklabels(etiquetas);
+    xlim([t0 t0+T_ZOOM]);
+    ylim([-0.5, 9*paso]);
+    xlabel('Tiempo [s]');
+    title(sprintf('Llaves cerradas de la matriz 3x3 (zoom de %g ms)', T_ZOOM*1e3));
+else
+    warning('No se encuentra %s. Se omite el grafico de llaves.', ARCH_DIRECCIONES);
+end
+
+%% ------------------------- Funciones locales ----------------------------
+
+function h = linea_horizontal(y, estilo, ancho)
+    % Reemplazo de yline(), que recien existe desde R2018b
+    lim = xlim;
+    estaba_hold = ishold;
+    hold on;
+    h = plot(lim, [y y], estilo, 'LineWidth', ancho);
+    xlim(lim);
+    if ~estaba_hold
+        hold off;
+    end
+end
+
+function [f, P1] = espectro(x, Fs)
+    % Espectro de amplitud unilateral
+    n  = numel(x);
+    Y  = fft(x);
+    P2 = abs(Y/n);
+    P1 = P2(1:floor(n/2)+1);
+    P1(2:end-1) = 2*P1(2:end-1);
+    f  = Fs*(0:floor(n/2))'/n;
+end
+
+function [iu, iv, iw] = filtrar_RL(vu, vv, vw, R, L, t, Ts)
+    % Respuesta de una carga RL serie por fase, discretizada por Tustin
+    G_z = c2d(tf(1, [L R]), Ts, 'tustin');
+    iu = lsim(G_z, vu, t);
+    iv = lsim(G_z, vv, t);
+    iw = lsim(G_z, vw, t);
+end
