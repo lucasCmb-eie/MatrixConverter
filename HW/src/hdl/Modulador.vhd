@@ -347,17 +347,20 @@ begin
           acumul <= acumul + ('0' & mod_profp_abs (24 downto 15)); 
 
         when "00000011011" =>                             -- ESTADO 27
-          -- 512 menos la suma de los 4 vectores activos (que es exactamente el tiempo nulo de medio ciclo)
-          acumul <= "01000000000" - acumul;
+          -- Tiempo nulo de MEDIO ciclo (N) = semiperiodo menos la suma de los 4 vectores activos.
+          -- El semiperiodo son 1024 clks, no 512: el Ts completo es la ventana de 'estado' (2048).
+          acumul <= "10000000000" - acumul;
 
         when "00000011100" =>                             -- ESTADO 28
-          if (acumul(10 downto 9) = "00") then
-            -- ARREGLO SIMÉTRICO (SSVM): 25% bordes, 50% centro.
-            dela01 <= "000" & acumul(8 downto 2);         
-            dela13 <= "000" & acumul(8 downto 2);         
-            dela04 <= "0000000000";                       
-            dela10 <= "0000000000";                       
-            dela07 <= "00"  & acumul(8 downto 1);         
+          if (acumul(10) = '0') then                      -- N valido (sin underflow: sum(|dela|) <= 1024)
+            -- SSVM: 25% en cada borde y 50% en el centro, repartido sobre el nulo del ciclo
+            -- COMPLETO (que vale 2N) => bordes = N/2, centro = N.
+            -- Total del patron = 2*S + 2*N = 2*S + 2*(1024 - S) = 2048 clks, constante.
+            dela01 <= '0' & acumul(9 downto 1);           -- N/2
+            dela13 <= '0' & acumul(9 downto 1);           -- N/2
+            dela04 <= "0000000000";
+            dela10 <= "0000000000";
+            dela07 <= acumul(9 downto 0);                 -- N
           else
             dela01 <= (others => '0');
             dela13 <= (others => '0');
@@ -445,7 +448,6 @@ begin
   --
   -- Calculo del cociente Q/ASB(COS(PHI_I))
   --
-  -- q <= i_q_i;
 
   aux_div <= i_q_i - cos_phi;
 
@@ -472,6 +474,10 @@ begin
     if (rising_edge(i_reloj)) then                      -- Flanco de descendente
 
       case estado is
+
+        when "00000000001" =>                           -- ARREGLO: recarga q desde la entrada real al inicio de cada ciclo
+
+          q <= i_q_i;
 
         when "00000000010" =>                           -- En el algoritmo de division que usaremos el resultado debe ser < 1 (q < cos_ohi)
 

@@ -65,20 +65,30 @@ begin
     s_W <= to_sfixed(i_W, HIGH_BIT, LOW_BIT);
 
     -- 2. Lógica de Matriz (Enrutamiento/Enmascarado)
-    -- Fila U (Indices de i_M: 0, 3, 6)
-    terms_U(0) <= s_U when i_M(0) = '1' else (others => '0');
-    terms_U(1) <= s_V when i_M(3) = '1' else (others => '0');
+    -- Formato de la palabra i_M(8 downto 0) generada por 'modulador' (switch_matrix):
+    -- tres grupos de 3 bits, un grupo por FASE DE SALIDA, y dentro del grupo el MSB
+    -- corresponde a la entrada U, el bit del medio a V y el LSB a W.
+    --
+    --      i_M(8..6) = fila salida U  ->  [U V W]
+    --      i_M(5..3) = fila salida V  ->  [U V W]
+    --      i_M(2..0) = fila salida W  ->  [U V W]
+    --
+    -- Ej.: configuracion +1 = "100 010 010" = {U<-U, V<-V, W<-V} (Tabla I de Casadei).
+
+    -- Fila U (Indices de i_M: 8, 7, 6)
+    terms_U(0) <= s_U when i_M(8) = '1' else (others => '0');
+    terms_U(1) <= s_V when i_M(7) = '1' else (others => '0');
     terms_U(2) <= s_W when i_M(6) = '1' else (others => '0');
 
-    -- Fila V (Indices de i_M: 1, 4, 7)
-    terms_V(0) <= s_U when i_M(1) = '1' else (others => '0');
+    -- Fila V (Indices de i_M: 5, 4, 3)
+    terms_V(0) <= s_U when i_M(5) = '1' else (others => '0');
     terms_V(1) <= s_V when i_M(4) = '1' else (others => '0');
-    terms_V(2) <= s_W when i_M(7) = '1' else (others => '0');
+    terms_V(2) <= s_W when i_M(3) = '1' else (others => '0');
 
-    -- Fila W (Indices de i_M: 2, 5, 8)
+    -- Fila W (Indices de i_M: 2, 1, 0)
     terms_W(0) <= s_U when i_M(2) = '1' else (others => '0');
-    terms_W(1) <= s_V when i_M(5) = '1' else (others => '0');
-    terms_W(2) <= s_W when i_M(8) = '1' else (others => '0');
+    terms_W(1) <= s_V when i_M(1) = '1' else (others => '0');
+    terms_W(2) <= s_W when i_M(0) = '1' else (others => '0');
 
     -- 3. Suma y Registro
     process(i_clk)
