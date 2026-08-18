@@ -17,3 +17,5 @@ SW/workspace/*
 dfx_runtime.txt
 HW/src/bd/design_SVM_PS.pdf
 /Medicion_Trifasica/Tension/Tension-backups
+CLAUDE.md
+*.pdf
