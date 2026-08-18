@@ -3,6 +3,8 @@ use IEEE.STD_LOGIC_1164.ALL;
 use ieee.fixed_pkg.all;
 use ieee.numeric_std.all;
 
+use work.sine_lut_pkg.all;
+
 library std;
 use std.textio.all;
 
@@ -16,7 +18,7 @@ architecture Behavioral of tb_SVM_Wrapper is
     constant INT_BITS    : integer := 8;
     constant FRAC_BITS   : integer := 24;
     
-    constant q_value : std_logic_vector(8 downto 0) := "000111000"; -- Valor fijo de q (Q0.8) 001000000 64
+    constant q_value : std_logic_vector(8 downto 0) := "010110011"; -- Valor fijo de q (Q0.8) 001000000 64
     constant phi_value : std_logic_vector(10 downto 0) := "00000000000"; -- Valor fijo de phi_i
 
     signal fin_calc_ts : std_logic;
@@ -49,7 +51,8 @@ architecture Behavioral of tb_SVM_Wrapper is
     signal Angle_Vi : unsigned(10 downto 0);-- Salida del diente de sierra 50Hz
     signal Angle_Io : unsigned(10 downto 0);-- Salida del diente de sierra variable
     
-    signal test_al_o : std_logic_vector(10 downto 0);
+    signal test_al_o : std_logic_vector(10 downto 0); -- Diente de sierra ideal de salida (50Hz)
+    signal test_be_i : std_logic_vector(10 downto 0); -- Diente de sierra ideal de entrada (60Hz)
     signal w_direcciones : std_logic_vector(17 downto 0); --Coeficientes de la matriz de conmutacion
     signal w_trigger : std_logic;
     signal w_ClarkValido_V : std_logic;
@@ -60,9 +63,21 @@ architecture Behavioral of tb_SVM_Wrapper is
     -- Acumulador de 32 bits para alta precisión
     signal phase_accumulator : unsigned(31 downto 0) := (others => '0');
     
-    -- Palabra de sintonía (FTW) para 60 Hz con Clock de 10 MHz:
+    -- Palabra de sintonía (FTW) para 50 Hz (referencia de salida deseada) con Clock de 10 MHz:
+    -- Fórmula: (50 Hz * 2^32) / 10_000_000 = 21475
+    constant FREQ_TUNING_WORD_OUT : unsigned(31 downto 0) := to_unsigned(21475, 32); --50Hz
+
+    -- Palabra de sintonía (FTW) para 60 Hz (fuente trifásica de entrada ideal) con Clock de 10 MHz:
     -- Fórmula: (60 Hz * 2^32) / 10_000_000 = 25770
-    constant FREQ_TUNING_WORD : unsigned(31 downto 0) := to_unsigned(25770, 32); --60Hz
+    constant FREQ_TUNING_WORD_IN : unsigned(31 downto 0) := to_unsigned(25770, 32); --60Hz
+
+    -- Acumuladores de fase del NCO trifásico de entrada (reemplaza AC_Source para esta prueba)
+    -- OJO: el desfase de 120°/240° va en el valor inicial de la DECLARACION, no solo en el
+    -- reset: 'rst' se desactiva en el mismo instante que un flanco de clk, asi que el reset
+    -- se pierde por carrera de deltas y las tres fases arrancarian todas en 0 (U=V=W).
+    signal phase_acc_U : unsigned(31 downto 0) := x"00000000";
+    signal phase_acc_V : unsigned(31 downto 0) := x"55555555";  -- +120°
+    signal phase_acc_W : unsigned(31 downto 0) := x"AAAAAAA9";  -- +240°
 
 begin
 
@@ -71,7 +86,7 @@ begin
             i_clk    => clk, 
             i_enable => enable_SVM,
             i_al_o   => test_al_o,
-            i_be_i   => STD_LOGIC_VECTOR(Angle_Vi),
+            i_be_i   => test_be_i,
             i_q_i    => q_value,  
             i_phi_i  => phi_value, 
 
@@ -88,17 +103,32 @@ begin
             o_W => tension_SVM_W
     );
     
-    --NCO
-    AC: entity work.AC_SOURCE
-        port map (
-            i_clk => clk,
-            i_rst => rst,
-            i_frec => "01",
+    -- Fuente trifasica de entrada ideal a 60Hz (NCO local, reemplaza AC_Source para esta prueba
+    -- ya que su mux de frecuencia solo calibra 50Hz para distintos clocks, no ofrece 60Hz)
+    process(clk)
+    begin
+        if rising_edge(clk) then
+            if rst = '1' then
+                phase_acc_U <= (others => '0');
+                phase_acc_V <= x"55555555";  -- +120°
+                phase_acc_W <= x"AAAAAAA9";  -- +240°
+            else
+                phase_acc_U <= phase_acc_U + FREQ_TUNING_WORD_IN;
+                phase_acc_V <= phase_acc_V + FREQ_TUNING_WORD_IN;
+                phase_acc_W <= phase_acc_W + FREQ_TUNING_WORD_IN;
+            end if;
+        end if;
+    end process;
 
-            o_U   => tension_fase_U,
-            o_V   => tension_fase_V,
-            o_W   => tension_fase_W
-    );
+    tension_fase_U <= std_logic_vector(SINE_TABLE(to_integer(phase_acc_U(31 downto 21))));
+    tension_fase_V <= std_logic_vector(SINE_TABLE(to_integer(phase_acc_V(31 downto 21))));
+    tension_fase_W <= std_logic_vector(SINE_TABLE(to_integer(phase_acc_W(31 downto 21))));
+
+    -- Diente de sierra ideal de entrada (i_be_i): angulo fisico real de la fuente trifasica.
+    -- OJO: tension_fase_U usa SINE_TABLE (seno, no coseno), entonces con U=sin(theta) el angulo
+    -- fisico real (atan2(beta,alfa) de Clark) es PI/2 - theta, NO theta directamente
+    -- (theta = angulo crudo del acumulador phase_acc_U).
+    test_be_i <= std_logic_vector(to_unsigned(512, 11) - phase_acc_U(31 downto 21));
 
     TClark_Vi: entity work.TransformadaClark
         generic map (
@@ -184,7 +214,9 @@ begin
             report "Reset";   
             rst <= '1';
             enable_SVM <= '0';
-            wait for (2*PER2);
+            -- 5*PER2 (no 2*PER2): asi el flanco de bajada de rst NO coincide con un flanco
+            -- ascendente de clk y el reset se ve al menos en un flanco limpio.
+            wait for (5*PER2);
             rst <= '0';
             enable_SVM <= '1';
             -- alph_O <= Sierra_angle_50Hz;
@@ -195,7 +227,7 @@ begin
 
 
 
-    -- Generador de Rampa Ideal (NCO) para 60Hz
+    -- Generador de Rampa Ideal (NCO) para 50Hz (referencia de salida deseada)
     process(clk)
     begin
         if rising_edge(clk) then
@@ -203,7 +235,7 @@ begin
                 phase_accumulator <= (others => '0');
             else
                 -- Incremento lineal perfecto en cada ciclo de reloj
-                phase_accumulator <= phase_accumulator + FREQ_TUNING_WORD;
+                phase_accumulator <= phase_accumulator + FREQ_TUNING_WORD_OUT;
             end if;
         end if;
     end process;
@@ -218,7 +250,7 @@ begin
     -- Asegúrate de incluir 'use std.textio.all;' antes de la entity si no está.
     
     gen_csv_5MHz: process
-        file file_handler : text open write_mode is "F:\FPGA\Potencia FPGA\MatrixConverter\SW\matlab\Clk10M_50i_60o_Simetrico.csv";
+        file file_handler : text open write_mode is "F:\FPGA\Potencia FPGA\MatrixConverter\SW\matlab\Clk10M_60i_50o_Simetrico.csv";
         variable row      : line;
         
         -- Contadores y control
