@@ -71,13 +71,16 @@ architecture Behavioral of tb_SVM_Wrapper is
     -- Fórmula: (60 Hz * 2^32) / 10_000_000 = 25770
     constant FREQ_TUNING_WORD_IN : unsigned(31 downto 0) := to_unsigned(25770, 32); --60Hz
 
-    -- Acumuladores de fase del NCO trifásico de entrada (reemplaza AC_Source para esta prueba)
-    -- OJO: el desfase de 120°/240° va en el valor inicial de la DECLARACION, no solo en el
-    -- reset: 'rst' se desactiva en el mismo instante que un flanco de clk, asi que el reset
-    -- se pierde por carrera de deltas y las tres fases arrancarian todas en 0 (U=V=W).
+    -- Acumuladores de fase del NCO trifásico de entrada (reemplaza AC_Source para esta prueba).
+    -- Secuencia POSITIVA, igual que AC_Source: V = -120°, W = +120°. Con tabla de senos eso
+    -- da alfa = sin(theta), beta = -cos(theta), o sea un vector e^j(theta - PI/2) que gira en
+    -- sentido directo.
+    -- OJO: el desfase va tambien en el valor inicial de la DECLARACION, no solo en el reset,
+    -- porque 'rst' baja cerca de un flanco de clk y si se pierde por carrera de deltas las
+    -- tres fases arrancarian en 0 (U=V=W) y cualquier matriz de conmutacion daria lo mismo.
     signal phase_acc_U : unsigned(31 downto 0) := x"00000000";
-    signal phase_acc_V : unsigned(31 downto 0) := x"55555555";  -- +120°
-    signal phase_acc_W : unsigned(31 downto 0) := x"AAAAAAA9";  -- +240°
+    signal phase_acc_V : unsigned(31 downto 0) := x"AAAAAAA9";  -- -120° (= 240°)
+    signal phase_acc_W : unsigned(31 downto 0) := x"55555555";  -- +120°
 
 begin
 
@@ -86,7 +89,10 @@ begin
             i_clk    => clk, 
             i_enable => enable_SVM,
             i_al_o   => test_al_o,
-            i_be_i   => test_be_i,
+            -- Angulo de entrada por el camino real: TransformadaClark sobre las tres
+            -- tensiones de la fuente + CORDIC_atan2. Se prefiere al diente de sierra ideal
+            -- (test_be_i) para ejercitar la cadena completa tal como quedara en el sistema.
+            i_be_i   => std_logic_vector(Angle_Vi),
             i_q_i    => q_value,  
             i_phi_i  => phi_value, 
 
@@ -109,9 +115,9 @@ begin
     begin
         if rising_edge(clk) then
             if rst = '1' then
-                phase_acc_U <= (others => '0');
-                phase_acc_V <= x"55555555";  -- +120°
-                phase_acc_W <= x"AAAAAAA9";  -- +240°
+                phase_acc_U <= x"00000000";
+                phase_acc_V <= x"AAAAAAA9";  -- -120° (= 240°)
+                phase_acc_W <= x"55555555";  -- +120°
             else
                 phase_acc_U <= phase_acc_U + FREQ_TUNING_WORD_IN;
                 phase_acc_V <= phase_acc_V + FREQ_TUNING_WORD_IN;
@@ -124,11 +130,12 @@ begin
     tension_fase_V <= std_logic_vector(SINE_TABLE(to_integer(phase_acc_V(31 downto 21))));
     tension_fase_W <= std_logic_vector(SINE_TABLE(to_integer(phase_acc_W(31 downto 21))));
 
-    -- Diente de sierra ideal de entrada (i_be_i): angulo fisico real de la fuente trifasica.
-    -- OJO: tension_fase_U usa SINE_TABLE (seno, no coseno), entonces con U=sin(theta) el angulo
-    -- fisico real (atan2(beta,alfa) de Clark) es PI/2 - theta, NO theta directamente
-    -- (theta = angulo crudo del acumulador phase_acc_U).
-    test_be_i <= std_logic_vector(to_unsigned(512, 11) - phase_acc_U(31 downto 21));
+    -- Diente de sierra ideal de entrada. YA NO alimenta al modulador: queda solo como
+    -- referencia para comparar contra Angle_Vi en el visor de ondas y verificar que el
+    -- camino T.Clark + CORDIC entrega el angulo correcto.
+    -- Con la fuente en secuencia positiva y tabla de senos, alfa = sin(theta) y
+    -- beta = -cos(theta), asi que atan2(beta,alfa) = theta - PI/2, o sea theta - 512.
+    test_be_i <= std_logic_vector(phase_acc_U(31 downto 21) - to_unsigned(512, 11));
 
     TClark_Vi: entity work.TransformadaClark
         generic map (
