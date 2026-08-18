@@ -126,10 +126,13 @@ fprintf('Carga equivalente para %.1f A de pico: R = %.4f Ohm, L = %.2f mH\n', ..
         I_PICO_OBJETIVO, R_1A, L_1A*1e3);
 
 figure('Name', 'Corrientes RL escaladas a 1 A de pico', 'Color', 'w');
-plot(t, i_u*k_esc, 'r', t, i_v*k_esc, 'g', t, i_w*k_esc, 'b');
-grid on; legend('i_U','i_V','i_W'); xlim([0 t(end)]);
+h_fases = plot(t, i_u*k_esc, 'r', t, i_v*k_esc, 'g', t, i_w*k_esc, 'b');
+grid on; xlim([0 t(end)]);
 linea_horizontal( I_PICO_OBJETIVO, 'k--', 1.0);
 linea_horizontal(-I_PICO_OBJETIVO, 'k--', 1.0);
+% legend despues de las lineas de referencia y con handles explicitos, para que
+% no aparezcan como 'data1'/'data2' ni se desalineen los colores
+legend(h_fases, 'i_U', 'i_V', 'i_W');
 xlabel('Tiempo [s]'); ylabel('Corriente [A]');
 title(sprintf('Corrientes con carga R = %.3f Ohm, L = %.2f mH (pico = %.1f A)', ...
               R_1A, L_1A*1e3, I_PICO_OBJETIVO));
