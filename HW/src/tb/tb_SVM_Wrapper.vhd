@@ -18,8 +18,23 @@ architecture Behavioral of tb_SVM_Wrapper is
     constant INT_BITS    : integer := 8;
     constant FRAC_BITS   : integer := 24;
     
-    constant q_value : std_logic_vector(8 downto 0) := "010110011"; -- Valor fijo de q (Q0.8) 001000000 64
+    constant q_value : std_logic_vector(8 downto 0) := "010110100"; -- 180/256 = 0.703125
     constant phi_value : std_logic_vector(10 downto 0) := "00000000000"; -- Valor fijo de phi_i
+
+    -- Sentido de giro de la referencia de salida: +1 directo, -1 inverso.
+    -- Con -1 la rampa de i_al_o cuenta hacia atras, que es como se ejercita la
+    -- compensacion de retardo del modulador: esa logica interpreta el incremento por Ts
+    -- como signed y tiene que ATRASAR el angulo en vez de adelantarlo.
+    constant SENTIDO_SALIDA : integer := 1;
+
+    -- Rutas de los CSV. Centralizadas y con separador simple: VHDL no interpreta
+    -- secuencias de escape, asi que un '\\' en la cadena son dos barras literales.
+    -- Conviene cambiarlas entre corridas para no pisar la linea de base
+    -- (por ejemplo agregando el sufijo _sinComp / _conComp).
+    constant ARCH_TENSIONES : string :=
+        "F:\FPGA\Potencia FPGA\MatrixConverter\SW\matlab\Clk10M_60i_50o_Simetrico.csv";
+    constant ARCH_DIRECCIONES : string :=
+        "F:\FPGA\Potencia FPGA\MatrixConverter\SW\matlab\w_direcciones_log.csv";
 
     signal fin_calc_ts : std_logic;
     signal fin_ciclo : std_logic;
@@ -234,7 +249,9 @@ begin
 
 
 
-    -- Generador de Rampa Ideal (NCO) para 50Hz (referencia de salida deseada)
+    -- Generador de Rampa Ideal (NCO) para 50Hz (referencia de salida deseada).
+    -- El sentido lo fija SENTIDO_SALIDA: sumando cuenta hacia adelante, restando hacia
+    -- atras. En el segundo caso el modulador ve un incremento por Ts negativo.
     process(clk)
     begin
         if rising_edge(clk) then
@@ -242,7 +259,11 @@ begin
                 phase_accumulator <= (others => '0');
             else
                 -- Incremento lineal perfecto en cada ciclo de reloj
-                phase_accumulator <= phase_accumulator + FREQ_TUNING_WORD_OUT;
+                if SENTIDO_SALIDA >= 0 then
+                    phase_accumulator <= phase_accumulator + FREQ_TUNING_WORD_OUT;
+                else
+                    phase_accumulator <= phase_accumulator - FREQ_TUNING_WORD_OUT;
+                end if;
             end if;
         end if;
     end process;
@@ -257,7 +278,7 @@ begin
     -- Asegúrate de incluir 'use std.textio.all;' antes de la entity si no está.
     
     gen_csv_5MHz: process
-        file file_handler : text open write_mode is "F:\FPGA\Potencia FPGA\MatrixConverter\SW\matlab\Clk10M_60i_50o_Simetrico.csv";
+        file file_handler : text open write_mode is ARCH_TENSIONES;
         variable row      : line;
         
         -- Contadores y control
@@ -308,7 +329,7 @@ begin
     end process gen_csv_5MHz;
     
     gen_w_direcciones_csv: process
-        file file_w : text open write_mode is "F:\\FPGA\\Potencia FPGA\\MatrixConverter\\SW\\matlab\\w_direcciones_log.csv";
+        file file_w : text open write_mode is ARCH_DIRECCIONES;
         variable row : line;
         variable v_idx : integer := 0;
         variable v_bin_str : string(1 to 18);
