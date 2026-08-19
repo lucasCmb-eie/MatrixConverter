@@ -61,7 +61,23 @@ begin
   -- Proceso de estado
   --
   op_al_o <= '0' & al_o;
-  op_be_i <= '0' & be_i + "000010101011"; -- Sumo PI/6 para usar los mismos limites para definir los sectores
+  -- Sumo PI/6 para usar los mismos limites que al_o para definir los sectores.
+  --
+  -- LOS PARENTESIS SON OBLIGATORIOS. En VHDL '&' y '+' tienen la MISMA precedencia y
+  -- asocian a izquierda, asi que "'0' & be_i + 171" se leia como "('0' & be_i) + 171":
+  -- la suma se hacia en 12 bits y NUNCA envolvia modulo 2048. Con be_i de 11 bits
+  -- op_be_i llegaba a 2047 + 171 = 2218, y para be_i en [1877, 2047] -- o sea 171 de
+  -- 2048 = 8,35 % del periodo de entrada -- la cadena de restas de abajo no encontraba
+  -- ningun corte y caia al else final: ki = 6 en vez de 1, con be_it errado en 59,9
+  -- grados. Sumando en 11 bits la cuenta envuelve sola.
+  --
+  -- Medido sobre 0,2 s de simulacion (60 Hz in / 50 Hz out): agrupando el residuo del
+  -- tiempo activo por sector, el eje de salida daba plano (+-0,0003) y el de entrada
+  -- tenia un solo sector disparado, +0,0672 contra -0,013 de los otros cinco. Modelar
+  -- el desborde bajaba el residuo a 60 Hz 9,1 veces y a 120 Hz 8,1 veces.
+  --
+  -- op_al_o no necesita nada: no suma, asi que nunca pasa de 2047.
+  op_be_i <= '0' & (be_i + "00010101011");
 
   process (clock) is
   begin
