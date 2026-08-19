@@ -86,6 +86,8 @@ set files [list \
  [file normalize "${origin_dir}/HW/src/tb/tb_CORDIC_atan2.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_testSistemaLA.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_SVM_Wrapper.vhd"] \
+ [file normalize "${origin_dir}/HW/src/tb/tb_SVM_FoutVar.vhd"] \
+ [file normalize "${origin_dir}/HW/src/tb/tb_SVM_FinVar.vhd"] \
 ]
 add_files -norecurse -fileset $obj $files
 
