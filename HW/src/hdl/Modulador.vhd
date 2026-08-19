@@ -204,6 +204,43 @@ begin
   --
   -- Control de PWM.
   --
+  -- MEDIDO SOBRE 0,2 s DE SIMULACION (18/08/2026, q = 180/256, 60 Hz in / 50 Hz out).
+  -- Tres hechos de esta maquina que conviene tener a mano antes de tocarla. Se midieron
+  -- con SW/python/AnalizarPatronPWM.py, que hace run-length encoding de la palabra de
+  -- 9 bits del log de conmutacion.
+  --
+  -- 1) EL UMBRAL DE 8 NO ES AJUSTABLE. Los 6 estados de busqueda (contador_pwm de 8 a 3)
+  --    se consumen del countdown DEL PROPIO VECTOR que se esta aplicando. Si dela < 8 el
+  --    contador se carga con un valor que cae dentro de la ventana de busqueda y la
+  --    maquina se desincroniza. Por eso los dela mas cortos que 8 se saltean en vez de
+  --    aplicarse: es un requisito estructural, no un minimo de ancho de pulso elegible.
+  --    Bajarlo exige sacar el lookahead del countdown (evaluar los dela en paralelo).
+  --
+  -- 2) ESA ZONA MUERTA NO EXPLICA EL 5.o/7.o ARMONICO. Es real y se ve: el run aplicado
+  --    mas corto es de exactamente 7 clks y no hay NADA por debajo, sobre una meseta
+  --    plana de ~39 slots por clk-bin. Pero cuesta apenas ~272 slots descartados en
+  --    0,2 s (0,28 por Ts) = 0,054 % del tiempo total = 0,073 % del tiempo activo. Aun
+  --    suponiendo que todo ese error caiga coherente en una sola banda, acota las
+  --    laterales de 250/350 Hz en ~0,07 % (0,15 % siendo generoso), contra 0,57 % y
+  --    0,40 % medidos: falta un factor de 5 a 8. Ademas los slots cortos NO se agrupan
+  --    6 veces por periodo de SALIDA, que es lo que pedia la teoria de los cruces de
+  --    sector. La pista viva esta del lado de la ENTRADA (ver AnalizarPatronPWM.py).
+  --
+  -- 3) HAY DOS SOBRECOSTOS FIJOS, mas grandes que la zona muerta:
+  --    - Duracion aplicada = dela - 1. Cuesta 7,54 clks/Ts sobre los vectores activos
+  --      = 0,368 % de Ts = 0,494 % de caida del fundamental. Es un error de GANANCIA
+  --      constante, no una fuente de armonicos, y se absorbe subiendo i_q_i.
+  --    - Hueco fijo de 12 clks al inicio de cada Ts: 6 con calculo_end alto (estado 23
+  --      lo pone, estado 29 lo baja) mas 6 de busqueda hasta llegar al estado 2. En el
+  --      log aparece como runs de 12 clks que arrancan SIEMPRE en el offset 42 modulo
+  --      2048 (388 de 388 casos). Cae sobre el nulo de borde, asi que es benigno.
+  --    Corregir el off-by-one obliga a las dos cosas juntas: correr los estados de
+  --    busqueda de 8..3 a 7..2 (cargar dela_sel + 1 desborda con el dela saturado de
+  --    1023) Y bajar el semiperiodo de 1024 a 1018 en el estado 27, porque la ventana
+  --    util son 2036 clks y no 2048. Solo lo primero hace que el patron se pase 12 clks
+  --    y, con q alto (N/2 < 12), empiece a truncar un vector ACTIVO. Se decidio no
+  --    hacerlo: 0,5 % de calibracion no justifica el riesgo.
+  --
   process (i_reloj) is
   begin
     
