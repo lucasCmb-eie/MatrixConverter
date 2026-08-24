@@ -161,26 +161,6 @@ begin
             o_beta => Clark_beta_Io
         );
 
-    PhaseGenVar: entity work.PhaseSawGen
-        generic map(
-            G_CLK_FREQ => 1.0e8,  -- frecuencia de reloj (Hz)
-            G_F_SINE   => 100.0    -- frecuencia de la senoide (Hz)
-        )
-        port map (
-            i_clk   => clk,
-            i_rst   => rst,
-            i_sin   => to_sfixed(Clark_alfa_Vi, INT_BITS - 1, -FRAC_BITS),  -- usamos componente α
-            o_angle => Sierra_angle_Var
-        );
-
-    PhaseGen50: entity work.PhaseSawGen
-        port map (
-            i_clk   => clk,
-            i_rst   => rst,
-            i_sin   => to_sfixed(Clark_alfa_Vi, INT_BITS - 1, -FRAC_BITS),  -- usamos componente α
-            o_angle => Sierra_angle_50Hz
-        );
-
     DoClock: process
     begin
         clk <= '1';

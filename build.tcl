@@ -66,10 +66,16 @@ if {[string equal [get_filesets -quiet constrs_1] ""]} {
 
 # Set 'constrs_1' fileset object
 set obj [get_filesets constrs_1]
-set files [list \
- [file normalize "${origin_dir}/HW/src/constrs/timing.xdc"] \
-]
-add_files -norecurse -fileset $obj $files
+# NOTA: HW/src/constrs/ quedo sin archivos de restricciones versionados.
+# Al agregar uno, listarlo aca; los que falten se omiten con aviso en vez de abortar.
+set files [list]
+foreach f $files {
+  if {[file exists $f]} {
+    add_files -norecurse -fileset $obj $f
+  } else {
+    puts "WARNING: constraint no encontrado, se omite: $f"
+  }
+}
 
 # Set 'constrs_1' fileset properties
 set obj [get_filesets constrs_1]
@@ -84,7 +90,6 @@ set files [list \
  [file normalize "${origin_dir}/HW/src/tb/sine_generator_tb.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_TransformadaClark.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_CORDIC_atan2.vhd"] \
- [file normalize "${origin_dir}/HW/src/tb/tb_testSistemaLA.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_SVM_Wrapper.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_SVM_FoutVar.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_SVM_FinVar.vhd"] \
@@ -127,7 +132,11 @@ current_run -implementation [get_runs impl_1]
 puts "INFO: Project created:${_xil_proj_name_}"
 
 # # Create block design
-# source $origin_dir/HW/src/bd/design_SVM_PS.tcl
+# # HW/src/bd/ ya no contiene scripts .tcl de block design. Lo unico presente es
+# # HW/src/bd/test_ComunicPLPS/test_ComunicPLPS.bd (BD guardado, no script generador).
+# # Para reincorporarlo:
+# #   add_files -norecurse -fileset [get_filesets sources_1] \
+# #     [file normalize "$origin_dir/HW/src/bd/test_ComunicPLPS/test_ComunicPLPS.bd"]
 
 # # Generate the wrapper
 # set design_name [get_bd_designs]
