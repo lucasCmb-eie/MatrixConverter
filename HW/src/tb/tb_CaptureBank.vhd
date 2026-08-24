@@ -61,6 +61,41 @@ begin
         end loop;
         report "CAPTURA OK: los 13 registros se leen";
 
+        -- 2b) flanco vs nivel: captura solo en el flanco ascendente de i_capture, no mientras permanece alto
+        -- Si el modulo fuera nivel-sensible, capturaría B en el segundo clock edge. Esto lo detecta.
+        for k in 0 to 12 loop
+            src(k) <= std_logic_vector(to_unsigned(16#B0# + k, 32));
+        end loop;
+        wait until rising_edge(clk);
+        capture <= '1';
+        wait until rising_edge(clk);  -- se captura A (patron 0xB0)
+        -- capture sigue en alto, ahora cambiamos src a B sin bajar capture
+        for k in 0 to 12 loop
+            src(k) <= std_logic_vector(to_unsigned(16#C0# + k, 32));
+        end loop;
+        wait until rising_edge(clk);  -- segundo clock con capture en alto
+        -- pero como es nivel-insensible, debe seguir leyendo A, no B
+        for k in 0 to 12 loop
+            sel <= std_logic_vector(to_unsigned(k, 32));
+            wait for 1 ns;
+            check(d, std_logic_vector(to_unsigned(16#B0# + k, 32)),
+                  "flanco ascendente sel=" & integer'image(k));
+        end loop;
+        capture <= '0';
+        wait until rising_edge(clk);
+        report "FLANCO OK: captura solo en el flanco ascendente, no en nivel";
+
+        -- Restaurar src al patron original A para que coherencia use los valores esperados
+        for k in 0 to 12 loop
+            src(k) <= std_logic_vector(to_unsigned(16#A0# + k, 32));
+        end loop;
+        wait until rising_edge(clk);
+        -- Ahora forzar una captura del patron A nuevamente, para que coherencia lo verifique
+        capture <= '1';
+        wait until rising_edge(clk);
+        capture <= '0';
+        wait until rising_edge(clk);
+
         -- 3) coherencia: cambiar las fuentes NO cambia lo capturado
         for k in 0 to 12 loop
             src(k) <= std_logic_vector(to_unsigned(16#5000# + k, 32));
