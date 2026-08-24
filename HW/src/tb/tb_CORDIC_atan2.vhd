@@ -8,6 +8,9 @@ end tb_CORDIC_atan2;
 architecture Behavioral of tb_CORDIC_atan2 is
 
     constant PER2 : time := (10 ns /2);
+    -- Step del NCO de AC_Source para 50 Hz con el reloj de 100 MHz de este tb:
+    --     round(50 * 2**32 / 100e6) = 2147   ->  49,988 Hz
+    constant STEP_50HZ : std_logic_vector(31 downto 0) := x"00000863";
     
     constant INT_BITS    : integer := 8;
     constant FRAC_BITS   : integer := 24;
@@ -40,6 +43,7 @@ begin
         port map (
             i_clk => clk,
             i_rst => rst,
+            i_frec => STEP_50HZ,
 
             o_U   => tension_fase_U,
             o_V   => tension_fase_V,

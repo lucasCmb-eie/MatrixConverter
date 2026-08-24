@@ -12,7 +12,10 @@ end entity ncoLUT_tb;
 
 architecture ncoLUT_tb_arch of ncoLUT_tb is
 
-    constant PER2 : time := (1 us /2);
+    constant PER2 : time := (100 ns /2);  -- periodo/2 -> reloj de 10 MHz
+    -- Step del NCO de AC_Source para 50 Hz con reloj de 10 MHz:
+    --     round(50 * 2**32 / 10e6) = 21475
+    constant STEP_50HZ : std_logic_vector(31 downto 0) := x"000053E3";
     constant INT_BITS    : integer := 3;
     constant FRAC_BITS   : integer := 29;
     constant coef_Alpha : sfixed(INT_BITS-1 downto -FRAC_BITS) := to_sfixed(0.00000041667, INT_BITS-1, -FRAC_BITS);
@@ -36,7 +39,7 @@ nco: entity work.AC_Source
     port map(
         i_clk => test_clk_in,
         i_rst => test_rst_in,
-        i_frec => "00",
+        i_frec => STEP_50HZ,
 
         o_U => test_o_U,
         o_V => test_o_V,

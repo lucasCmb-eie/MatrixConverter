@@ -13,15 +13,21 @@ architecture simulation of sine_generator_tb is
 
     -- 1. Declaración del Componente a Probar (UUT - Unit Under Test)
     component sine_generator is
+        generic (
+            PHASE_INITIAL : unsigned(31 downto 0) := (others => '0')
+        );
         port (
             clk      : in  std_logic;
             reset    : in  std_logic;
+            frec_inp : in  std_logic_vector(31 downto 0);
             sine_out : out signed(SINE_DATA_WIDTH - 1 downto 0)
         );
     end component sine_generator;
 
     -- 2. Constantes de Simulación
-    constant CLK_FREQUENCY : real    := 100_000.0; -- 100 kHz
+    constant CLK_FREQUENCY : real    := 10.0e6; -- 10 MHz
+    -- Step del NCO para 50 Hz con ese reloj: round(50 * 2**32 / 10e6) = 21475
+    constant STEP_50HZ     : std_logic_vector(31 downto 0) := x"000053E3";
     constant CLK_PERIOD    : time    := 1 sec / CLK_FREQUENCY;
     constant SINE_PERIOD   : time    := 20 ms; -- Período de la onda de 50 Hz
 
@@ -37,6 +43,7 @@ begin
         port map (
             clk      => tb_clk,
             reset    => tb_reset,
+            frec_inp => STEP_50HZ,
             sine_out => tb_sine_out
         );
 

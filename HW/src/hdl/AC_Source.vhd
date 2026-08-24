@@ -6,11 +6,19 @@ use work.sine_lut_pkg.all;
 
 --!
 -- Fuente trifasica de señal senoidal
+--
+-- Las tres fases comparten el mismo step de NCO, asi que la frecuencia de salida
+-- se varia en tiempo de ejecucion escribiendo 'i_frec' (ver la formula abajo).
 entity AC_Source is
 port (
-    i_clk : in  std_logic; --! Entrada de Clock : 100KHz
+    i_clk : in  std_logic; --! Entrada de Clock : 10 MHz
     i_rst : in  std_logic; --! Reset
-    i_frec : in  std_logic_vector(1 downto 0); --! Entrada de frecuencia de salida
+    --! Step del NCO que fija la frecuencia de salida de las tres fases:
+    --!     i_frec = round(f_out * 2**32 / f_clk)
+    --! Con f_clk = 10 MHz -> i_frec = round(f_out * 429.4967296), o sea
+    --!     50 Hz -> 21475 (x"000053E3")      60 Hz -> 25770 (x"000064AA")
+    --! Por defecto 50 Hz.
+    i_frec : in  std_logic_vector(31 downto 0) := x"000053E3";
 
     o_U : out std_logic_vector(31 downto 0); --! Salida de tensión de linea U
     o_V : out std_logic_vector(31 downto 0); --! Salida de tensión de linea V
@@ -39,7 +47,7 @@ architecture Behavioral of AC_Source is
         port (
             clk      : in  std_logic;
             reset    : in  std_logic;
-            frec_inp : in  std_logic_vector(1 downto 0);
+            frec_inp : in  std_logic_vector(31 downto 0);
 
             sine_out : out signed(31 downto 0)
         );
@@ -48,7 +56,7 @@ architecture Behavioral of AC_Source is
     signal w_lineaU : SIGNED(31 downto 0);
     signal w_lineaV : SIGNED(31 downto 0);
     signal w_lineaW : SIGNED(31 downto 0);
-    
+
 
 begin
 
@@ -62,7 +70,7 @@ begin
             clk   => i_clk,
             reset => i_rst,
             frec_inp => i_frec,
-            
+
             sine_out => w_lineaU
         );
 
@@ -74,7 +82,7 @@ begin
             clk   => i_clk,
             reset => i_rst,
             frec_inp => i_frec,
-            
+
             sine_out => w_lineaV
         );
 
@@ -86,7 +94,7 @@ begin
             clk   => i_clk,
             reset => i_rst,
             frec_inp => i_frec,
-            
+
             sine_out => w_lineaW
         );
 

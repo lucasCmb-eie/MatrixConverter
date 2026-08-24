@@ -8,6 +8,9 @@ end tb_RL_Tustin;
 architecture Behavioral of tb_RL_Tustin is
     
     constant PER2 : time := (10 ns /2); -- Se busca 100MHz
+    -- Step del NCO de AC_Source para 50 Hz con el reloj de 100 MHz de este tb:
+    --     round(50 * 2**32 / 100e6) = 2147   ->  49,988 Hz
+    constant STEP_50HZ : std_logic_vector(31 downto 0) := x"00000863";
     constant CLK_FREQ : real := 1.0e8;
     
     constant INT_BITS    : integer := 8;
@@ -19,8 +22,6 @@ architecture Behavioral of tb_RL_Tustin is
     constant phi_value : std_logic_vector(10 downto 0) := "00000000000"; -- Valor fijo de phi_i
 
     signal fin_calc_ts : std_logic;
-    signal fin_ciclo : std_logic;
-    signal inicio_ciclo : std_logic;
 
     signal clk : std_logic;
     signal rst : std_logic;
@@ -63,6 +64,7 @@ begin
         port map (
             i_clk => clk,
             i_rst => rst,
+            i_frec => STEP_50HZ,
 
             o_U   => tension_fase_U,
             o_V   => tension_fase_V,
@@ -101,9 +103,8 @@ begin
             i_q_i    => "001000000", -- Valor fijo de q (Q0.8)
             i_phi_i  => "00000000000", -- Valor fijo de phi_i
 
-            o_fin_ciclo    => fin_ciclo,
-            o_inicio_ciclo => inicio_ciclo,
-            o_fin_calc_ts  => fin_calc_ts,
+            o_trg_calculo        => fin_calc_ts,
+            o_direcciones_Matriz => open,
 
             i_U => tension_fase_U,
             i_V => tension_fase_V,
@@ -133,7 +134,7 @@ begin
         port map (
             i_clk => clk,
             i_rst => rst,
-            i_enable => tick_enable,
+            i_start => tick_enable,
 
             i_U   => tension_fase_U,
             i_V   => tension_fase_V,
@@ -151,7 +152,7 @@ begin
         port map (
             i_clk => clk,
             i_rst => rst,
-            i_enable => tick_enable,
+            i_start => tick_enable,
 
             i_U   => corriente_fase_U,
             i_V   => corriente_fase_V,

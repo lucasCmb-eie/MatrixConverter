@@ -6,7 +6,10 @@ end tb_TransformadaClark;
 
 architecture Behavioral of tb_TransformadaClark is
 
-    constant PER2 : time := (10 ns /2); --periodo/2 (el test será hecho con un test_clk_in de 100 KHz) Se alcanza una señal seno de 48.8Hz
+    constant PER2 : time := (100 ns /2); --periodo/2 -> reloj de 10 MHz
+    -- Step del NCO de AC_Source para 50 Hz con reloj de 10 MHz:
+    --     round(50 * 2**32 / 10e6) = 21475
+    constant STEP_50HZ : std_logic_vector(31 downto 0) := x"000053E3";
     signal test_clk_in : std_logic;
     signal test_rst_in : std_logic;
     
@@ -48,7 +51,8 @@ begin
     port map(
         i_clk => test_clk_in,
         i_rst => test_rst_in,
-        
+        i_frec => STEP_50HZ,
+
         o_U => w_test_U,
         o_V => w_test_V,
         o_W => w_test_W
