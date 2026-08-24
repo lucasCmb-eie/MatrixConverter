@@ -72,6 +72,37 @@ no tiene los arreglos de agosto, y su `AC_Source.vhd` no tiene el `i_frec` de 32
 sintetizaría RTL viejo. Un RTL module toma el archivo directamente del fileset, así que el BD
 siempre ve `HW/src/hdl/`, que es la fuente de verdad.
 
+#### Restricción de VHDL-2008 en los RTL modules
+
+Vivado **no acepta un archivo VHDL-2008 como top de un module reference**:
+
+```
+ERROR: [filemgmt 56-195] Reference 'X' contains top file '...' of type VHDL 2008.
+This type is not allowed as the top file in the reference.
+```
+
+Las *dependencias* sí pueden ser 2008 — solo el archivo top de la referencia tiene que ser
+VHDL-93. Verificado con Vivado 2025.2: `SVM_wrapper` carga bien aunque instancia `matrixConmut`,
+que es 2008.
+
+Además el fileset tiene que estar en orden de compilación automático
+(`set_property source_mgmt_mode All`), o los module references se ignoran con
+`CRITICAL WARNING: [filemgmt 56-176]`.
+
+De ahí sale qué se instancia y cómo:
+
+| Bloque del BD | Referencia | Pines | Nota |
+|---|---|---|---|
+| Fuente | `AC_Source` | 6 | directo; ya es VHDL-93 |
+| Clark | `TClark_wrapper` | 9 | el wrapper que ya existe; se marca VHDL-93 |
+| Ángulo | `CORDIC_atan2` | 7 | directo; sus puertos `signed`/`unsigned` se exponen como vectores |
+| Modulador | `SVM_wrapper` | 14 | directo, con dependencias 2008 |
+| Carga | `RL_bd` | 11 | **wrapper nuevo**: `RL_wrapper` usa `to_sfixed` en su architecture y no puede ser top |
+
+Marcado de `file_type` en el fileset: **VHDL 2008** solo para `Declaraciones.vhd`,
+`TransformadaClark.vhd`, `matrixConmut.vhd`, `RL_fase.vhd` y `RL_wrapper.vhd`. Todo lo demás
+queda VHDL-93.
+
 **Ambos ángulos del modulador salen de la tensión de entrada.** `i_al_o` e `i_be_i` se conectan
 los dos a la salida del mismo `CORDIC_atan2`, que vectoriza el `α,β` de la tensión de entrada.
 
@@ -268,8 +299,9 @@ Los índices 0..10 son Q8.24 con signo; 11 y 12 son enteros sin signo.
 | Archivo | Estado | Contenido |
 |---|---|---|
 | `HW/src/hdl/util/CaptureBank.vhd` | nuevo | §7 |
+| `HW/src/hdl/wrappers/RL_bd.vhd` | nuevo | wrapper VHDL-93 sobre `RL_wrapper`, para poder instanciarlo en el BD (§3) |
 | `HW/src/bd/test_ComunicPLPS/create_bd.tcl` | nuevo | script que construye el BD completo |
-| `build.tcl` | modificar | agregar `CaptureBank.vhd` a `sources_1` |
+| `build.tcl` | modificar | agregar `CaptureBank.vhd` y `RL_bd.vhd` a `sources_1` |
 
 El script **recrea** el BD desde cero. El `test_ComunicPLPS.bd` que existe hoy está vacío
 (`design_tree: {}`), así que no se pierde trabajo. Los `.bda`, `.bxml` y `ui/` los regenera Vivado.
