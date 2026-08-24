@@ -32,7 +32,7 @@ architecture Behavioral of tb_SVM_Wrapper is
     -- Conviene cambiarlas entre corridas para no pisar la linea de base
     -- (por ejemplo agregando el sufijo _sinComp / _conComp).
     constant ARCH_TENSIONES : string :=
-        "F:\FPGA\Potencia FPGA\MatrixConverter\SW\matlab\Clk10M_60i_50o_Simetrico.csv";
+        "F:\FPGA\Potencia FPGA\MatrixConverter\SW\matlab\Clk10M_50i_40o_Simetrico.csv";
     constant ARCH_DIRECCIONES : string :=
         "F:\FPGA\Potencia FPGA\MatrixConverter\SW\matlab\w_direcciones_log.csv";
 
@@ -62,12 +62,12 @@ architecture Behavioral of tb_SVM_Wrapper is
     signal Clark_alfa_Io : std_logic_vector(31 downto 0);
     signal Clark_beta_Io : std_logic_vector(31 downto 0);
 
-    -- Salida diente de sierra
-    signal Angle_Vi : unsigned(10 downto 0);-- Salida del diente de sierra 50Hz
-    signal Angle_Io : unsigned(10 downto 0);-- Salida del diente de sierra variable
+    -- Angulos calculados por CORDIC_atan2 (NO son dientes de sierra: el unico
+    -- diente de sierra del tb es test_al_o, para i_al_o).
+    signal Angle_Vi : unsigned(10 downto 0);-- Angulo de la tension de entrada -> i_be_i
+    signal Angle_Io : unsigned(10 downto 0);-- Angulo de TClark_Io, hoy sin consumidor
     
-    signal test_al_o : std_logic_vector(10 downto 0); -- Diente de sierra ideal de salida (50Hz)
-    signal test_be_i : std_logic_vector(10 downto 0); -- Diente de sierra ideal de entrada (60Hz)
+    signal test_al_o : std_logic_vector(10 downto 0); -- Diente de sierra ideal de salida (40Hz)
     signal w_direcciones : std_logic_vector(17 downto 0); --Coeficientes de la matriz de conmutacion
     signal w_trigger : std_logic;
     signal w_ClarkValido_V : std_logic;
@@ -78,24 +78,14 @@ architecture Behavioral of tb_SVM_Wrapper is
     -- Acumulador de 32 bits para alta precisión
     signal phase_accumulator : unsigned(31 downto 0) := (others => '0');
     
-    -- Palabra de sintonía (FTW) para 50 Hz (referencia de salida deseada) con Clock de 10 MHz:
+    -- Palabra de sintonía (FTW) para 40 Hz (referencia de salida deseada) con Clock de 10 MHz:
+    -- Fórmula: (40 Hz * 2^32) / 10_000_000 = 17180
+    constant FREQ_TUNING_WORD_OUT : unsigned(31 downto 0) := to_unsigned(17180, 32); --40Hz
+
+    -- Palabra de sintonía (FTW) para 50 Hz (fuente trifásica de entrada) con Clock de 10 MHz:
     -- Fórmula: (50 Hz * 2^32) / 10_000_000 = 21475
-    constant FREQ_TUNING_WORD_OUT : unsigned(31 downto 0) := to_unsigned(21475, 32); --50Hz
+    constant FREQ_TUNING_WORD_IN : unsigned(31 downto 0) := to_unsigned(21475, 32); --50Hz
 
-    -- Palabra de sintonía (FTW) para 60 Hz (fuente trifásica de entrada ideal) con Clock de 10 MHz:
-    -- Fórmula: (60 Hz * 2^32) / 10_000_000 = 25770
-    constant FREQ_TUNING_WORD_IN : unsigned(31 downto 0) := to_unsigned(25770, 32); --60Hz
-
-    -- Acumuladores de fase del NCO trifásico de entrada (reemplaza AC_Source para esta prueba).
-    -- Secuencia POSITIVA, igual que AC_Source: V = -120°, W = +120°. Con tabla de senos eso
-    -- da alfa = sin(theta), beta = -cos(theta), o sea un vector e^j(theta - PI/2) que gira en
-    -- sentido directo.
-    -- OJO: el desfase va tambien en el valor inicial de la DECLARACION, no solo en el reset,
-    -- porque 'rst' baja cerca de un flanco de clk y si se pierde por carrera de deltas las
-    -- tres fases arrancarian en 0 (U=V=W) y cualquier matriz de conmutacion daria lo mismo.
-    signal phase_acc_U : unsigned(31 downto 0) := x"00000000";
-    signal phase_acc_V : unsigned(31 downto 0) := x"AAAAAAA9";  -- -120° (= 240°)
-    signal phase_acc_W : unsigned(31 downto 0) := x"55555555";  -- +120°
 
 begin
 
@@ -105,8 +95,8 @@ begin
             i_enable => enable_SVM,
             i_al_o   => test_al_o,
             -- Angulo de entrada por el camino real: TransformadaClark sobre las tres
-            -- tensiones de la fuente + CORDIC_atan2. Se prefiere al diente de sierra ideal
-            -- (test_be_i) para ejercitar la cadena completa tal como quedara en el sistema.
+            -- tensiones que entrega AC_Source + CORDIC_atan2, para ejercitar la cadena
+            -- completa tal como quedara en el sistema.
             i_be_i   => std_logic_vector(Angle_Vi),
             i_q_i    => q_value,  
             i_phi_i  => phi_value, 
@@ -124,33 +114,21 @@ begin
             o_W => tension_SVM_W
     );
     
-    -- Fuente trifasica de entrada ideal a 60Hz (NCO local, reemplaza AC_Source para esta prueba
-    -- ya que su mux de frecuencia solo calibra 50Hz para distintos clocks, no ofrece 60Hz)
-    process(clk)
-    begin
-        if rising_edge(clk) then
-            if rst = '1' then
-                phase_acc_U <= x"00000000";
-                phase_acc_V <= x"AAAAAAA9";  -- -120° (= 240°)
-                phase_acc_W <= x"55555555";  -- +120°
-            else
-                phase_acc_U <= phase_acc_U + FREQ_TUNING_WORD_IN;
-                phase_acc_V <= phase_acc_V + FREQ_TUNING_WORD_IN;
-                phase_acc_W <= phase_acc_W + FREQ_TUNING_WORD_IN;
-            end if;
-        end if;
-    end process;
+    -- Fuente trifasica de entrada a 50 Hz. AC_Source instancia tres sine_generator con
+    -- PHASE_INITIAL 0 / -120 / +120 (secuencia POSITIVA) e indexa la misma SINE_TABLE con
+    -- los 11 bits altos del acumulador de fase, asi que entrega exactamente las mismas
+    -- tensiones que el NCO local que estaba aca antes.
+    -- La frecuencia la fija el step por i_frec; ya no hace falta un NCO propio.
+    AC: entity work.AC_Source
+        port map (
+            i_clk  => clk,
+            i_rst  => rst,
+            i_frec => std_logic_vector(FREQ_TUNING_WORD_IN),
 
-    tension_fase_U <= std_logic_vector(SINE_TABLE(to_integer(phase_acc_U(31 downto 21))));
-    tension_fase_V <= std_logic_vector(SINE_TABLE(to_integer(phase_acc_V(31 downto 21))));
-    tension_fase_W <= std_logic_vector(SINE_TABLE(to_integer(phase_acc_W(31 downto 21))));
-
-    -- Diente de sierra ideal de entrada. YA NO alimenta al modulador: queda solo como
-    -- referencia para comparar contra Angle_Vi en el visor de ondas y verificar que el
-    -- camino T.Clark + CORDIC entrega el angulo correcto.
-    -- Con la fuente en secuencia positiva y tabla de senos, alfa = sin(theta) y
-    -- beta = -cos(theta), asi que atan2(beta,alfa) = theta - PI/2, o sea theta - 512.
-    test_be_i <= std_logic_vector(phase_acc_U(31 downto 21) - to_unsigned(512, 11));
+            o_U => tension_fase_U,
+            o_V => tension_fase_V,
+            o_W => tension_fase_W
+        );
 
     TClark_Vi: entity work.TransformadaClark
         generic map (
@@ -249,7 +227,9 @@ begin
 
 
 
-    -- Generador de Rampa Ideal (NCO) para 50Hz (referencia de salida deseada).
+    -- Generador de Rampa Ideal (NCO) para 40Hz (referencia de salida deseada).
+    -- Unico diente de sierra del tb: alimenta i_al_o. El angulo de entrada (i_be_i)
+    -- sale del camino AC_Source -> TransformadaClark -> CORDIC_atan2.
     -- El sentido lo fija SENTIDO_SALIDA: sumando cuenta hacia adelante, restando hacia
     -- atras. En el segundo caso el modulador ve un incremento por Ts negativo.
     process(clk)
