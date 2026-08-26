@@ -6,10 +6,14 @@
 # Banco de pruebas del puente PS<->PL: el datapath del conversor en lazo
 # abierto sobre la PL, expuesto al PS por dos AXI GPIO.
 #
-#   axi_gpio_ctrl  ch1 out : bit0 rst, bit1 enable SVM, bit2 capture
+#   axi_gpio_ctrl  ch1 out : bit0 rst, bit1 enable SVM, bit2 arm (captura)
 #                  ch2 out : i_frec (step del NCO de AC_Source)
-#   axi_gpio_data  ch1 in  : dato capturado
+#   axi_gpio_data  ch1 in  : dato capturado (indice 13 = estado)
 #                  ch2 out : selector de registro
+#
+# La captura la pide el PS (arm) pero la dispara el modulador
+# (o_trg_calculo), asi la foto cae siempre en el mismo punto de la ventana
+# de PWM. CaptureBank/o_listo avisa por GPIO y por IRQ_F2P.
 #
 # IMPORTANTE: cerrar la GUI de Vivado antes de correrlo, el batch necesita el
 # lock del proyecto.
@@ -95,9 +99,10 @@ current_bd_design [get_bd_designs $bd_name]
 create_bd_cell -type ip -vlnv xilinx.com:ip:processing_system7:5.5 processing_system7_0
 apply_bd_automation -rule xilinx.com:bd_rule:processing_system7 -config {make_external "FIXED_IO, DDR" apply_board_preset "1" Master "Disable" Slave "Disable"} [get_bd_cells processing_system7_0]
 
-# HP0 e IRQ_F2P vienen habilitados del preset de la Blackboard y quedarian
-# sueltos: se apagan para que la validacion pase limpia.
-set_property -dict [list CONFIG.PCW_FPGA0_PERIPHERAL_FREQMHZ {10} CONFIG.PCW_USE_M_AXI_GP0 {1} CONFIG.PCW_USE_S_AXI_HP0 {0} CONFIG.PCW_USE_FABRIC_INTERRUPT {0} CONFIG.PCW_IRQ_F2P_INTR {0}] [get_bd_cells processing_system7_0]
+# HP0 viene habilitado del preset de la Blackboard y quedaria suelto: se apaga
+# para que la validacion pase limpia. IRQ_F2P en cambio SI se usa: lo maneja
+# CaptureBank/o_listo. Es una sola fuente, asi que no hace falta xlconcat.
+set_property -dict [list CONFIG.PCW_FPGA0_PERIPHERAL_FREQMHZ {10} CONFIG.PCW_USE_M_AXI_GP0 {1} CONFIG.PCW_USE_S_AXI_HP0 {0} CONFIG.PCW_USE_FABRIC_INTERRUPT {1} CONFIG.PCW_IRQ_F2P_INTR {1} CONFIG.PCW_NUM_F2P_INTR_INPUTS {1}] [get_bd_cells processing_system7_0]
 
 set clk_10m [get_bd_pins processing_system7_0/FCLK_CLK0]
 
@@ -127,7 +132,7 @@ proc mk_slice {nombre bit} {
 }
 mk_slice sl_rst 0
 mk_slice sl_en  1
-mk_slice sl_cap 2
+mk_slice sl_arm 2
 
 # --- constantes del datapath ----------------------------------------------
 proc mk_const {nombre ancho valor} {
@@ -170,7 +175,7 @@ connect_bd_net [get_bd_pins sl_rst/Dout] [get_bd_pins AC_Source_0/i_rst] [get_bd
 
 # --- resto del control ----------------------------------------------------
 connect_bd_net [get_bd_pins sl_en/Dout]  [get_bd_pins SVM_wrapper_0/i_enable]
-connect_bd_net [get_bd_pins sl_cap/Dout] [get_bd_pins CaptureBank_0/i_capture]
+connect_bd_net [get_bd_pins sl_arm/Dout] [get_bd_pins CaptureBank_0/i_arm]
 
 # --- fuente trifasica: la frecuencia la fija el PS ------------------------
 #   i_frec = round(f_o * 2**32 / 10 MHz) = round(f_o * 429,4967)
@@ -180,7 +185,8 @@ connect_bd_net [get_bd_pins axi_gpio_ctrl/gpio2_io_o] [get_bd_pins AC_Source_0/i
 connect_bd_net [get_bd_pins AC_Source_0/o_U] [get_bd_pins TClark_wrapper_0/i_U] [get_bd_pins SVM_wrapper_0/i_U] [get_bd_pins CaptureBank_0/i_d00]
 connect_bd_net [get_bd_pins AC_Source_0/o_V] [get_bd_pins TClark_wrapper_0/i_V] [get_bd_pins SVM_wrapper_0/i_V] [get_bd_pins CaptureBank_0/i_d01]
 connect_bd_net [get_bd_pins AC_Source_0/o_W] [get_bd_pins TClark_wrapper_0/i_W] [get_bd_pins SVM_wrapper_0/i_W] [get_bd_pins CaptureBank_0/i_d02]
-connect_bd_net [get_bd_pins SVM_wrapper_0/o_trg_calculo] [get_bd_pins TClark_wrapper_0/i_start]
+# El mismo pulso es la batuta del muestreo: dispara el Clark y la captura.
+connect_bd_net [get_bd_pins SVM_wrapper_0/o_trg_calculo] [get_bd_pins TClark_wrapper_0/i_start] [get_bd_pins CaptureBank_0/i_trigger]
 
 # --- CORDIC: alfa/beta -> angulo ------------------------------------------
 connect_bd_net [get_bd_pins TClark_wrapper_0/o_alfa]   [get_bd_pins CORDIC_atan2_0/x_in]
@@ -214,6 +220,11 @@ connect_bd_net [get_bd_pins Cero32/dout] [get_bd_pins CaptureBank_0/i_d03] [get_
 connect_bd_net [get_bd_pins axi_gpio_data/gpio2_io_o] [get_bd_pins CaptureBank_0/i_sel]
 connect_bd_net [get_bd_pins CaptureBank_0/o_data]     [get_bd_pins axi_gpio_data/gpio_io_i]
 
+# o_listo es nivel, no pulso: sirve para polear por el indice 13 del selector
+# y a la vez para manejar IRQ_F2P, que el GIC toma sensible a nivel alto.
+# El ack lo hace el propio i_arm='0', que limpia o_listo.
+connect_bd_net [get_bd_pins CaptureBank_0/o_listo] [get_bd_pins processing_system7_0/IRQ_F2P]
+
 # ============================ verificacion ================================
 
 # --- 1) conectividad de las celdas que arma este script ------------------
@@ -223,7 +234,7 @@ connect_bd_net [get_bd_pins CaptureBank_0/o_data]     [get_bd_pins axi_gpio_data
 # Los pines escalares que son miembros de una interfaz (s_axi_awaddr, etc.)
 # se excluyen del barrido: su conectividad vive en el interface net, no en un
 # net comun, asi que se chequean aparte por la interfaz completa.
-set celdas {AC_Source_0 TClark_wrapper_0 CORDIC_atan2_0 SVM_wrapper_0 RL_wrapper_0 CaptureBank_0 axi_gpio_ctrl axi_gpio_data sl_rst sl_en sl_cap Q Phi_I Coef_a0 Coef_a1 Coef_b1 Cero32}
+set celdas {AC_Source_0 TClark_wrapper_0 CORDIC_atan2_0 SVM_wrapper_0 RL_wrapper_0 CaptureBank_0 axi_gpio_ctrl axi_gpio_data sl_rst sl_en sl_arm Q Phi_I Coef_a0 Coef_a1 Coef_b1 Cero32}
 set entradas_sueltas {}
 set salidas_sueltas {}
 set intf_sueltas {}
