@@ -40,8 +40,10 @@ set files [list \
   [file normalize "${origin_dir}/HW/src/hdl/util/sine_lut_pkg.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/util/Declaraciones.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/util/DienteSierraGen.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/util/CaptureBank.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/wrappers/AC_Source_wrapper.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/wrappers/RL_wrapper.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/wrappers/RL_bd.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/wrappers/SVM_wrapper.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/wrappers/TClark_wrapper.vhd"] \
  ]
@@ -49,7 +51,9 @@ set files [list \
 
 # Set IP repository paths
 set obj [get_filesets sources_1]
-set_property "ip_repo_paths" "[file normalize "$origin_dir/HW/src/ip/"]" $obj
+# La ruta del repo tiene espacios: sin [list ...] Vivado parte el string y
+# arma una ruta invalida (WARNING [IP_Flow 19-2248] al abrir el proyecto).
+set_property "ip_repo_paths" [list [file normalize "$origin_dir/HW/src/ip/"]] $obj
 
 # Rebuild user ip_repo's index before adding any source files
 update_ip_catalog -rebuild
@@ -93,6 +97,7 @@ set files [list \
  [file normalize "${origin_dir}/HW/src/tb/tb_SVM_Wrapper.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_SVM_FoutVar.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_SVM_FinVar.vhd"] \
+ [file normalize "${origin_dir}/HW/src/tb/tb_CaptureBank.vhd"] \
 ]
 add_files -norecurse -fileset $obj $files
 

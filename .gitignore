@@ -19,3 +19,13 @@ HW/src/bd/design_SVM_PS.pdf
 /Medicion_Trifasica/Tension/Tension-backups
 CLAUDE.md
 *.pdf
+
+# Block designs: se versiona solo el script generador (create_bd.tcl).
+# El .bd es JSON generado por Vivado, ilegible en un diff y atado a la version
+# de la herramienta; el resto (.bda .bxml .veo .vho _ooc.xdc, hdl/ ip/ sim/
+# synth/ ipshared/ hw_handoff/ ui/) lo regenera generate_target.
+HW/src/bd/*/*
+!HW/src/bd/*/create_bd.tcl
+
+# Directorio de trabajo temporal de Vivado (lo crea cualquier corrida en batch)
+.Xil/
