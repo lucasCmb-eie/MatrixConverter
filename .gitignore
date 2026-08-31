@@ -11,6 +11,7 @@ HW/src/ip/ConAXI/*
 #Workspace files
 SW/workspaceVitis/*
 SW/workspace/*
+SW/vitis/*
 #BSP Export (listed contents separately because "export" is a common name)
 */export/
 
