@@ -29,3 +29,6 @@ HW/src/bd/*/*
 
 # Directorio de trabajo temporal de Vivado (lo crea cualquier corrida en batch)
 .Xil/
+
+# Documentacion de trabajo (planes/specs de superpowers)
+docs/
