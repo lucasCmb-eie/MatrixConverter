@@ -32,9 +32,9 @@ architecture Behavioral of tb_SVM_Wrapper is
     -- Conviene cambiarlas entre corridas para no pisar la linea de base
     -- (por ejemplo agregando el sufijo _sinComp / _conComp).
     constant ARCH_TENSIONES : string :=
-        "F:\FPGA\Potencia FPGA\MatrixConverter\SW\matlab\Clk10M_50i_40o_Simetrico.csv";
+        "F:\FPGA\Potencia_FPGA\MatrixConverter\SW\matlab\Clk10M_50i_40o_Simetrico.csv";
     constant ARCH_DIRECCIONES : string :=
-        "F:\FPGA\Potencia FPGA\MatrixConverter\SW\matlab\w_direcciones_log.csv";
+        "F:\FPGA\Potencia_FPGA\MatrixConverter\SW\matlab\w_direcciones_log.csv";
 
     signal fin_calc_ts : std_logic;
     signal fin_ciclo : std_logic;

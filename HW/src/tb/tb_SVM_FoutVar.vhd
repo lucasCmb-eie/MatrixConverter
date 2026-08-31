@@ -268,7 +268,7 @@ begin
     -- LOGGING A CSV (1 de cada 10 flancos -> Fs = 1 MHz)
     -- ---------------------------------------------------------------------
     gen_csv_tensiones: process
-        file file_handler : text open write_mode is "F:\FPGA\Potencia FPGA\MatrixConverter\SW\matlab\Clk10M_50i_FoVar.csv";
+        file file_handler : text open write_mode is "F:\FPGA\Potencia_FPGA\MatrixConverter\SW\matlab\Clk10M_50i_FoVar.csv";
         variable row      : line;
 
         variable v_muestra_idx : integer := 0;
@@ -315,7 +315,7 @@ begin
     end process gen_csv_tensiones;
 
     gen_w_direcciones_csv: process
-        file file_w : text open write_mode is "F:\FPGA\Potencia FPGA\MatrixConverter\SW\matlab\w_direcciones_FoVar.csv";
+        file file_w : text open write_mode is "F:\FPGA\Potencia_FPGA\MatrixConverter\SW\matlab\w_direcciones_FoVar.csv";
         variable row : line;
         variable v_idx : integer := 0;
         variable v_decim : integer := 0;
