@@ -51,8 +51,8 @@ set files [list \
 
 # Set IP repository paths
 set obj [get_filesets sources_1]
-# La ruta del repo tiene espacios: sin [list ...] Vivado parte el string y
-# arma una ruta invalida (WARNING [IP_Flow 19-2248] al abrir el proyecto).
+# Las rutas con listas de archivos van envueltas en [list ...]: sin eso Vivado
+# parte el string en espacios y arma una ruta invalida (WARNING [IP_Flow 19-2248]).
 set_property "ip_repo_paths" [list [file normalize "$origin_dir/HW/src/ip/"]] $obj
 
 # Rebuild user ip_repo's index before adding any source files
@@ -103,7 +103,7 @@ add_files -norecurse -fileset $obj $files
 
 # Set 'sim_1' fileset properties
 set obj [get_filesets sim_1]
-set_property -name "top" -value "ncoLUT_tb" -objects $obj
+set_property -name "top" -value "tb_SVM_Wrapper" -objects $obj
 set_property -name "top_lib" -value "xil_defaultlib" -objects $obj
 
 # Create 'synth_1' run (if not found)
@@ -136,13 +136,21 @@ current_run -implementation [get_runs impl_1]
 
 puts "INFO: Project created:${_xil_proj_name_}"
 
-# # Create block design
-# # HW/src/bd/ ya no contiene scripts .tcl de block design. Lo unico presente es
-# # HW/src/bd/test_ComunicPLPS/test_ComunicPLPS.bd (BD guardado, no script generador).
-# # Para reincorporarlo:
-# #   add_files -norecurse -fileset [get_filesets sources_1] \
-# #     [file normalize "$origin_dir/HW/src/bd/test_ComunicPLPS/test_ComunicPLPS.bd"]
-
-# # Generate the wrapper
-# set design_name [get_bd_designs]
-# make_wrapper -files [get_files $design_name.bd] -top -import
+# ---------------------------------------------------------------- block design
+# El block design NO se arma aca. Se construye desde cero, sobre este proyecto
+# ya creado, con:
+#
+#   vivado -mode batch -source HW/src/bd/design_testPSPLComm/create_bd.tcl
+#
+# Ese script hace lo que este no puede hacer solo: fija el file_type por archivo
+# (VHDL 2008 vs 93; los tops de module reference no admiten 2008), crea
+# design_testPSPLComm en HW/src/bd/, lo valida, lo guarda, corre make_wrapper
+# -top -import y generate_target all.
+#
+# Del BD se versiona unicamente create_bd.tcl (ver .gitignore: HW/src/bd/*/*
+# ignorado con excepcion !HW/src/bd/*/create_bd.tcl). El .bd y sus productos de
+# salida son regenerables, igual que /project_ConmutMatrix, tambien ignorado.
+#
+# Regeneracion completa desde un clon limpio, parado en MatrixConverter/:
+#   vivado -mode batch -source build.tcl
+#   vivado -mode batch -source HW/src/bd/design_testPSPLComm/create_bd.tcl

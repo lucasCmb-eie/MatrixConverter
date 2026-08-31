@@ -36,10 +36,10 @@ if {![file exists $xpr]} {
 }
 open_project $xpr
 
-# NOTA: la ruta del repo tiene espacios. Los comandos de Vivado que reciben
-# *listas* de archivos (add_files, get_files) parten el string en espacios, asi
-# que esas rutas van envueltas en [list ...]. Los argumentos de valor unico
-# (open_project, create_bd_design -dir) no necesitan el envoltorio.
+# NOTA: los comandos de Vivado que reciben *listas* de archivos (add_files,
+# get_files) parten el string en espacios, asi que esas rutas van envueltas en
+# [list ...] por si el repo llega a colgar de una ruta con espacios. Los
+# argumentos de valor unico (open_project, create_bd_design -dir) no lo necesitan.
 
 # Sin esto los module references se ignoran en silencio
 # (CRITICAL WARNING [filemgmt 56-176]).
@@ -315,6 +315,12 @@ foreach s [get_bd_addr_segs -of [get_bd_addr_spaces processing_system7_0/Data]] 
 
 make_wrapper -files [get_files $bd_name.bd] -top -import
 generate_target all [get_files $bd_name.bd]
+
+# make_wrapper -import deja el wrapper en el fileset pero NO mueve el top:
+# sources_1 se queda con el que fijo build.tcl (modulador). Sin esto, un
+# proyecto recien regenerado sintetiza el modulo equivocado.
+set_property top ${bd_name}_wrapper [get_filesets sources_1]
+update_compile_order -fileset sources_1
 
 puts "INFO: BD $bd_name construido, validado y con wrapper generado"
 close_project
