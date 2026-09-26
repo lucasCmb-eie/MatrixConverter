@@ -213,3 +213,62 @@ depender de mi reduccion de sector: `al_ot` y `be_it` salen del propio
 `red_sector`.
 
 Es la medicion que deberia haber hecho de entrada en vez de reconstruir.
+
+## Sonda 4 — los `dela` medidos DIRECTO (2026-09-26)
+
+Leidos por nombres externos de VHDL-2008 (`<< signal .tb.svm.modulador_core.
+dela02 : ... >>`), junto con `al_ot`, `be_it`, `kv`, `ki` y el `q` INTERNO.
+Sin supuestos: los angulos reducidos salen del propio `red_sector`.
+
+    q_cmd  q_int   d02  d03  d05  d06   S=sum(4)   d07(nulo)  razon vs Casadei
+      51     51    154   24   11    1      190        834         1,954
+     102    102    298   59   34    6      397        627         1,987
+     153    153    460   77   41    6      584        440         1,985
+     204    204    635   89   38    5      767        257         1,998
+     255    255    746  150   82   16      994         30         1,993
+     306    153    925  155   78   13     1171          0         3,987
+     357    178   1023  151   67    9     1250        708         3,736
+
+### Hallazgo 1: el calculo de duties esta BIEN
+
+El cociente contra Casadei es **uniforme en las cuatro duties y constante en
+q** (1,95 a 2,00). O sea que la FORMA es exacta; solo hay un offset de escala
+constante, que muy probablemente es mi normalizacion de la formula y no un
+defecto del RTL. No lo reclamo como bug.
+
+**Esto REFUTA la conclusion de la sonda 3** ("la distribucion entre los cuatro
+no coincide"). Era un artefacto de mi reduccion de sector, que es justo lo que
+la sonda 3 habia marcado como no establecido.
+
+### Hallazgo 2: el fold-back es el normalizador de la division
+
+Arriba de `q_cmd = 255` se activa el normalizador: `q_int` pasa a valer
+`q_cmd/2`. Y **el cociente contra Casadei SALTA de 1,99 a 3,99**: la
+compensacion no restaura la escala, la deja 2x mas grande.
+
+Con las duties al doble, `S` se pasa de 1024, y `N = 1024 - S` (estado 27)
+hace underflow. La guarda del estado 28 (`if acumul(10) = '0'`) anula los
+nulos, el patron deja de sumar 2048, y la tension colapsa.
+
+El salto es **discontinuo y exactamente en el umbral del normalizador**, asi
+que no depende de ninguna convencion de normalizacion mia: sea cual sea la
+constante correcta, duplicarse al cruzar un umbral interno es un bug.
+
+Mecanismo, de punta a punta:
+
+    q > 255 -> normalizador divide q por 2
+            -> amp_parcial (lineas 528-536) lo vuelve a multiplicar por 2^n_norm
+            -> la compensacion se aplica DE MAS: duties 2x
+            -> S > 1024
+            -> N = 1024 - S hace underflow
+            -> la guarda anula los nulos
+            -> FOLD-BACK
+
+### Lo que falta para cerrar
+
+Instrumentar `n_norm`, `res_div`, `aux_div` y `cos_phi` a lo largo de los
+estados de la division para senalar la linea exacta. Los candidatos estan
+acotados a dos: el `if (q(7) = '1')` del estado 3 que decide si duplicar
+`cos_phi`, y la tabla de corrimientos de `amp_parcial`.
+
+Es una corrida corta mas.
