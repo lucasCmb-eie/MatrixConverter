@@ -881,7 +881,12 @@ begin
 
         when "00000000110" =>                                                                                                      -- Aqui ya esta disponible Kv y Ki
 
-          seq0 <= (not(ksum(0) xor signo_phi)) & (ksum(0) xor signo_phi) & (ksum(0) xor signo_phi) & (not(ksum(0) xor signo_phi));
+          -- EXPERIMENTO 2026-09-26 (rama investigacion_modulador_qmax):
+          -- patron de signos INVERTIDO respecto del original. El original era
+          --   [not s, s, s, not s]
+          -- y la regla (-1)^(Kv+Ki) de Casadei pide [s, not s, not s, s].
+          -- Ver Control/INVESTIGACION_MODULADOR.md. NO MERGEAR sin validar.
+          seq0 <= (ksum(0) xor signo_phi) & (not(ksum(0) xor signo_phi)) & (not(ksum(0) xor signo_phi)) & (ksum(0) xor signo_phi);
 
         when "00000000111" =>                                                                                                      --
 

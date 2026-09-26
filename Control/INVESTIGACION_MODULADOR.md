@@ -109,3 +109,56 @@ Invertir `seq0` a `[s, ¬s, ¬s, s]` y repetir el barrido de q:
   hay que rehacer la sonda 1.
 
 Es un cambio de una línea y una corrida de doce minutos.
+
+## Resultado del experimento del signo (2026-09-26)
+
+`seq0` invertido a `[s, !s, !s, s]`, mismo barrido de q:
+
+    q        |v_o| antes   |v_o| ahora   t_act antes   t_act ahora
+    0,0996     0,1020        0,1020        0,2023        0,2023
+    0,1992     0,2105        0,2103        0,4151        0,4151
+    0,2988     0,3103        0,3102        0,6257        0,6257
+    0,3984     0,4143        0,4141        0,8372        0,8372
+    0,4980     0,4872        0,4872        0,9810        0,9810
+    0,5977     0,5019        0,5018        1,0000        1,0000
+    0,6973     0,4266        0,4266        0,9011        0,9011
+    0,7969     0,4105        0,4104        0,8792        0,8792
+
+    desfasaje ang_v - al_o:   +180,0  ->  -0,1 grados
+
+### Conclusiones
+
+1. **CAUSA RAIZ DE LOS 180 GRADOS: CONFIRMADA.** El patron de signos de `seq0`
+   estaba complementado respecto de la regla `(-1)^(Kv+Ki)` de Casadei. Se
+   arregla con una linea en `Modulador.vhd:884`, en la fuente.
+
+2. **Era un complemento global**, como predijo la sonda 1: la magnitud y el
+   tiempo activo quedaron identicos hasta el cuarto decimal.
+
+3. **El techo de 0,50 y el fold-back NO los causa el patron de signos.** Son
+   un mecanismo independiente, todavia abierto. La cancelacion parcial entre
+   vectores (1,81x de tiempo activo desperdiciado) sigue sin explicar.
+
+### Consecuencia para el lazo de control
+
+Si se adopta el arreglo, hay que **sacar el `+1024` de `ControlLazo.vhd`** o el
+lazo vuelve a divergir: la compensacion existia justamente para tapar esto.
+Y hay que revalidar los criterios 1 a 4.
+
+`Q_MAX = 0,50` SE QUEDA: el techo de magnitud no se toco.
+
+### Lo que sigue abierto
+
+Por que los cuatro vectores activos se cancelan parcialmente, gastando 1,81
+veces el tiempo que corresponde. Candidatos, en orden:
+
+- Los pesos relativos entre los cuatro `dela` (las cuatro duties de Casadei
+  llevan productos de cosenos distintos; si dos se intercambiaron, el vector
+  resultante se acorta sin cambiar el tiempo total).
+- El emparejamiento entre `ddabs01..04` (que numero de vector) y `seq0` (que
+  signo): si el signo correcto se aplica al vector equivocado, se cancela.
+- La ventana de escala `mod_profp_abs(25 downto 16)`, que el arreglo de agosto
+  ya movio una vez.
+
+El fold-back arriba de q = 0,6 es a su vez un tercer mecanismo: desborde del
+presupuesto de duties que reinyecta tiempo nulo.
