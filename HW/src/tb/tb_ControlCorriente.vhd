@@ -21,34 +21,58 @@ use std.textio.all;
 --!     python SW/python/ModeloControlPR.py params
 entity tb_ControlCorriente is
     generic (
-        -- Frecuencias y amplitud, sobreescribibles con -generic_top en xelab.
-        G_PASO_IN  : integer := 21475;        -- 50 Hz de entrada
-        G_PASO_REF : integer := 21475;        -- 50 Hz de referencia de salida
-        G_AMP_REF  : integer := 1677722;      -- 0,10 pu en Q8.24
-        G_AMP_2    : integer := 1677722;      -- amplitud despues del escalon
-        G_T_ESCALON : time   := 1 sec;        -- por defecto, nunca
-        G_FREEZE   : std_logic := '1';
-        G_T_FIN    : time    := 400 ms
+        -- Todo entero, para poder sobreescribirlo con -generic_top en xelab:
+        -- los genericos de tipo `time` no se pueden pasar por linea de
+        -- comandos (xelab lee "80ms" como nombre de unidad de diseno).
+        -- La duracion de la corrida la fija el tcl con `run N ms`.
+        G_PASO_IN   : integer := 21475;       -- 50 Hz de entrada
+        G_PASO_REF  : integer := 21475;       -- 50 Hz de referencia de salida
+        G_K         : integer := 1079257;     -- k(50 Hz) en Q1.24
+        G_AMP_REF   : integer := 1677722;     -- 0,10 pu en Q8.24
+
+        -- Primer escalon (Ts en el que ocurre; 0 = nunca). Cambia amplitud
+        -- Y frecuencia a la vez, que es lo que exige el criterio 3: frec_ref
+        -- y k tienen que moverse juntos.
+        G_TS_ESC1   : integer := 0;
+        G_AMP_2     : integer := 1677722;
+        G_PASO_REF2 : integer := 21475;
+        G_K2        : integer := 1079257;
+
+        -- Segundo escalon, para volver de la saturacion (criterio 4).
+        G_TS_ESC2   : integer := 0;
+        G_AMP_3     : integer := 1677722;
+
+        G_FREEZE    : integer := 1            -- 1 = anti-windup activo
     );
 end entity tb_ControlCorriente;
 
 architecture sim of tb_ControlCorriente is
     constant PER : time := 100 ns;            -- 10 MHz
 
-    constant K_RES : std_logic_vector(24 downto 0) :=
-        std_logic_vector(to_signed(1079257, 25));          -- k(50 Hz) Q1.24
+    signal k_res : std_logic_vector(24 downto 0) :=
+        std_logic_vector(to_signed(G_K, 25));
     constant KP : std_logic_vector(31 downto 0) :=
         std_logic_vector(to_signed(169613184, 32));        -- Kp = 10,1097
     constant B_KR : std_logic_vector(31 downto 0) :=
         std_logic_vector(to_signed(2718742, 32));          -- b = Kr*Ts
-    -- 1/(1,976 * V_i). MEDIDO en lazo abierto el 26/09/2026: el modulador
-    -- entrega |v_o| = 1,976 * q * V_i, no q * V_i. Coincide con el factor
-    -- 1,980 que quedo registrado en la investigacion de agosto. V_i medido
-    -- = 1,0 en Q8.24, asi que el 1,976 es todo del modulador.
+    -- 1/1,0397. MEDIDO con un barrido de q en lazo abierto (26/09/2026),
+    -- infiriendo |v_o| de la CORRIENTE, que es lo que fisicamente integra la
+    -- tension aplicada. En la region lineal (q <= 0,4) la ganancia es 1,024 /
+    -- 1,057 / 1,038 / 1,040, media 1,0397.
+    --
+    -- Una medicion anterior, promediando o_U/o_V/o_W sobre cada Ts, daba
+    -- 1,976 de forma consistente: es un artefacto sistematico de ese metodo
+    -- (2x en toda la region lineal), no una propiedad del modulador. No usar.
     constant INV_VI : std_logic_vector(31 downto 0) :=
-        std_logic_vector(to_signed(8490494, 32));
+        std_logic_vector(to_signed(16137369, 32));
+    -- q_max = 0,50, NO el sqrt(3)/2 = 0,866 teorico. El barrido de lazo
+    -- abierto muestra que este modulador satura en |v_o| ~ 0,50 y que mas
+    -- alla DOBLA HACIA ATRAS: a q = 0,80 entrega 0,41, menos que a q = 0,60.
+    -- Dejar entrar al lazo en esa zona le invierte el signo a la ganancia de
+    -- planta y el integrador se escapa. 0,50 lo mantiene en la region lineal.
+    -- Corriente maxima resultante: 0,50 * 1,0397 / 3,9563 = 0,131 pu.
     constant Q_MAX : std_logic_vector(31 downto 0) :=
-        std_logic_vector(to_signed(14529495, 32));         -- sqrt(3)/2
+        std_logic_vector(to_signed(8388608, 32));
 
     -- Desfasaje del filtro de entrada, en cuentas de 11 bits. Sin filtro
     -- modelado todavia, va en cero.
@@ -69,6 +93,7 @@ architecture sim of tb_ControlCorriente is
         std_logic_vector(to_unsigned(G_PASO_REF * 2048, 32));
     signal amp_ref : std_logic_vector(31 downto 0) :=
         std_logic_vector(to_signed(G_AMP_REF, 32));
+    signal n_ts : integer := 0;
 
     -- entrada
     signal vU, vV, vW : std_logic_vector(31 downto 0);
@@ -92,7 +117,10 @@ architecture sim of tb_ControlCorriente is
     signal i_a,   i_b   : std_logic_vector(31 downto 0);
     signal v_a,   v_b   : std_logic_vector(31 downto 0);
 
+    signal freeze_sl : std_logic;
 begin
+
+    freeze_sl <= '1' when G_FREEZE /= 0 else '0';
 
     clk <= not clk after PER / 2 when not fin else '0';
     rst <= '0' after 20 * PER;
@@ -122,8 +150,9 @@ begin
     lazo : entity work.ControlLazo
         port map (i_clk => clk, i_rst => rst, i_en => en, i_trg => trg,
                   i_paso_ref => paso_ref, i_amp_ref => amp_ref,
-                  i_k => K_RES, i_kp => KP, i_b => B_KR,
-                  i_inv_vi => INV_VI, i_q_max => Q_MAX, i_freeze => G_FREEZE,
+                  i_k => k_res, i_kp => KP, i_b => B_KR,
+                  i_inv_vi => INV_VI, i_q_max => Q_MAX,
+                  i_freeze => freeze_sl,
                   i_iU => iU, i_iV => iV, i_iW => iW,
                   o_q => q, o_al_o => al_o, o_sat => sat,
                   o_ref_alfa => ref_a, o_ref_beta => ref_b,
@@ -148,13 +177,29 @@ begin
                   i_U => oU, i_V => oV, i_W => oW,
                   o_Iu => iU, o_Iv => iV, o_Iw => iW);
 
-    -- ---------------- escalon de amplitud ----------------
-    escalon : process
+    -- ---------------- escalones ----------------
+    -- Cuenta los Ts por el pulso de o_listo y dispara los escalones. El
+    -- primero mueve amplitud, frec_ref y k JUNTOS: frec_ref y k tienen que
+    -- viajar en el mismo Ts o el resonante queda sintonizado a otra
+    -- frecuencia que la referencia (spec 6.3).
+    escalones : process (clk)
     begin
-        wait for G_T_ESCALON;
-        amp_ref <= std_logic_vector(to_signed(G_AMP_2, 32));
-        wait;
-    end process escalon;
+        if rising_edge(clk) then
+            if rst = '1' then
+                n_ts <= 0;
+            elsif listo = '1' then
+                n_ts <= n_ts + 1;
+                if G_TS_ESC1 /= 0 and n_ts = G_TS_ESC1 then
+                    amp_ref  <= std_logic_vector(to_signed(G_AMP_2, 32));
+                    paso_ref <= std_logic_vector(to_unsigned(G_PASO_REF2 * 2048, 32));
+                    k_res    <= std_logic_vector(to_signed(G_K2, 25));
+                end if;
+                if G_TS_ESC2 /= 0 and n_ts = G_TS_ESC2 then
+                    amp_ref <= std_logic_vector(to_signed(G_AMP_3, 32));
+                end if;
+            end if;
+        end if;
+    end process escalones;
 
     -- ---------------- registro a CSV ----------------
     registro : process (clk)
@@ -209,13 +254,5 @@ begin
             end if;
         end if;
     end process vigilancia;
-
-    corte : process
-    begin
-        wait for G_T_FIN;
-        report "fin de la simulacion" severity note;
-        fin <= true;
-        wait;
-    end process corte;
 
 end architecture sim;
