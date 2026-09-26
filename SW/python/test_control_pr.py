@@ -120,5 +120,109 @@ class TestPlanta(unittest.TestCase):
         self.assertLess(error, 0.010, "medido 0,71 %; si subio, cambio el RTL")
 
 
+class TestPR(unittest.TestCase):
+
+    def _pr(self, f_o=50.0, kp=m.KP_DEF, kr=m.KR_DEF):
+        return m.PR2Int(k_i=m.k_q124(f_o),
+                        b_i=Q8_24.de_float(kr * m.TS, redondear=True),
+                        kp_i=Q8_24.de_float(kp, redondear=True))
+
+    def test_determinante_de_la_transicion_es_uno(self):
+        # La propiedad que mantiene los polos sobre el circulo unidad para
+        # cualquier k, incluso mal cuantizado (spec 5.1). 800 Hz esta cerca
+        # del maximo de 813,8 que admite Q1.24.
+        for f in (10.0, 50.0, 400.0, 800.0):
+            k = Q1_24.a_float(m.k_q124(f))
+            (a, b), (c, d) = m.matriz_transicion(k)
+            self.assertAlmostEqual(a * d - b * c, 1.0, places=12)
+
+    def test_kr_sale_de_la_impedancia_no_de_la_inductancia(self):
+        # El polo resonante de lazo cerrado se corre delta = Kr/(2*|R+jw_o*L|),
+        # asi que Kr = 2*|Z(w_o)|/tau, en ohm/s. La formula del spec 5.5 decia
+        # 2*L/tau, que tiene unidades de ohm y da 1,2 en vez de 395,6.
+        z = abs(complex(m.R, 2 * math.pi * 50.0 * m.L))
+        self.assertAlmostEqual(z, 3.9563, places=4)
+        self.assertAlmostEqual(m.KR_DEF, 2.0 * z / 20e-3, places=3)
+        self.assertEqual(Q8_24.de_float(m.KR_DEF * m.TS, redondear=True), 1359371)
+
+    def test_sigue_la_referencia_en_amplitud_y_fase(self):
+        # Criterio 1 del spec 7.4, en la version que es alcanzable: el lazo
+        # tiene 1 Ts de retardo de transporte por construccion (spec 4), que
+        # a 50 Hz son 3,686 grados. Lo exigible es amplitud < 1 % y fase POR
+        # ENCIMA de ese retardo conocido < 1 grado.
+        pr = self._pr()
+        planta = m.PlantaRL_Ts()
+        w = 2 * math.pi * 50.0
+        amp = 0.5
+        n_total, n_medir = 6000, 2000
+        cos_a = sen_a = 0.0
+        for n in range(n_total):
+            ref = amp * math.sin(w * n * m.TS)
+            e = Q8_24.de_float(ref - planta.i)
+            u = pr.paso(e, sat=False)
+            planta.paso(Q8_24.a_float(u))
+            if n >= n_total - n_medir:            # ya en regimen
+                th = w * n * m.TS
+                cos_a += planta.i * math.cos(th)
+                sen_a += planta.i * math.sin(th)
+        cos_a *= 2.0 / n_medir
+        sen_a *= 2.0 / n_medir
+
+        amplitud = math.hypot(cos_a, sen_a)
+        fase = math.degrees(math.atan2(cos_a, sen_a))
+        retardo_1ts = math.degrees(w * m.TS)
+
+        self.assertAlmostEqual(retardo_1ts, 3.686, places=3)
+        self.assertLess(abs(amplitud - amp) / amp, 0.01, "amplitud")
+        self.assertLess(abs(fase - retardo_1ts), 1.0, "fase mas alla del 1 Ts")
+
+    def test_el_resonante_ideal_no_amortigua(self):
+        # Review Focus 1: el resonante ideal no tiene amortiguamiento, asi
+        # que cualquier basura inicial se mantiene para siempre. El reset del
+        # RTL tiene que dejar x1/x2 exactamente en cero por eso.
+        pr = self._pr()
+        pr.x1 = Q8_40.de_float(0.01)
+        pr.x2 = 0
+        for _ in range(20000):                    # 4 s: mucho mas que cualquier tau
+            pr.paso(0, sat=False)
+        self.assertGreater(abs(Q8_40.a_float(pr.x1)) + abs(Q8_40.a_float(pr.x2)),
+                           1e-4,
+                           "el resonante ideal NO debe amortiguar; si amortigua, "
+                           "det(A) != 1 y la discretizacion esta mal")
+
+    def test_freeze_detiene_la_acumulacion_pero_no_la_rotacion(self):
+        # spec 5.4: sat congela la entrada, no el estado.
+        pr = self._pr()
+        pr.x1 = Q8_40.de_float(0.5)
+        pr.x2 = Q8_40.de_float(0.5)
+        antes = (pr.x1, pr.x2)
+        pr.paso(Q8_24.de_float(1.0), sat=True)
+        self.assertNotEqual((pr.x1, pr.x2), antes, "x2 tiene que seguir rotando")
+
+        # Con la entrada congelada el estado solo rota, y lo que la rotacion
+        # conserva NO es el modulo euclideo: la matriz del magic circle no es
+        # ortogonal (A^T A tiene 1+k^2 en la diagonal). El invariante es
+        # x1^2 + x2^2 - k*x1*x2, y ese si se conserva exacto.
+        k = Q1_24.a_float(m.k_q124(50.0))
+
+        def invariante(x1, x2):
+            a, b = Q8_40.a_float(x1), Q8_40.a_float(x2)
+            return a * a + b * b - k * a * b
+
+        self.assertAlmostEqual(invariante(*antes),
+                               invariante(pr.x1, pr.x2), places=9)
+
+    def test_error_maximo_no_desborda_los_estados(self):
+        # Review Focus 5: e en el extremo de Q8.24 durante muchos Ts.
+        pr = self._pr()
+        e_max = Q8_24.hi
+        for _ in range(500):
+            pr.paso(e_max, sat=False)
+            self.assertGreaterEqual(pr.x1, Q8_40.lo)
+            self.assertLessEqual(pr.x1, Q8_40.hi)
+            self.assertGreaterEqual(pr.x2, Q8_40.lo)
+            self.assertLessEqual(pr.x2, Q8_40.hi)
+
+
 if __name__ == "__main__":
     unittest.main()

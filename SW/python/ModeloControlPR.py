@@ -9,7 +9,7 @@ Referencia: docs/superpowers/specs/2026-09-17-control-corriente-salida-design.md
 
 import math
 
-from fixedpoint import Q
+from fixedpoint import Q, mul_trunc
 
 # --- formatos (spec 5.3) --------------------------------------------------
 Q8_24 = Q(8, 24)
@@ -27,6 +27,24 @@ TS = N_CLK_TS * T_CLK        # 204,8 us
 # misma tau (por eso b1 no cambia) pero 100x la ganancia. Se corrige a 70.
 R = 1.2                      # ohm
 L = 12e-3                    # H
+
+# --- sintonia por defecto ------------------------------------------------
+# Kp = w_c*L - R con f_c = 150 Hz. El ancho de banda lo limita Ts: 150 Hz
+# contra 50 Hz de fundamental son tres octavas escasas (spec 5.5).
+F_C = 150.0
+KP_DEF = 2.0 * math.pi * F_C * L - R                      # 10,1097
+
+# Kr fija la velocidad con que se anula el error en w_o. El polo resonante
+# de lazo cerrado se corre delta = Kr/(2*|R + j*w_o*L|), asi que para una
+# constante de tiempo tau:
+#
+#     Kr = 2*|Z(w_o)| / tau            [ohm/s]
+#
+# NO `2*L/tau`, que es lo que decia el spec 5.5: eso tiene unidades de ohm,
+# no de ohm/s, y da 1,2 en vez de 395,6 -- un factor 330 que deja al
+# resonante sin efecto util (error de regimen 27 % en vez de 0,13 %).
+TAU_RES = 20e-3                                           # un periodo de 50 Hz
+KR_DEF = 2.0 * abs(complex(R, 2.0 * math.pi * 50.0 * L)) / TAU_RES   # 395,63
 
 
 def coef_rl(r, l, t):
@@ -112,3 +130,53 @@ class PlantaRL_Clk(object):
         self.u_z1 = u
         self.i_z1 = i
         return i
+
+
+def matriz_transicion(k):
+    """Matriz de transicion del resonador discretizado forward-backward.
+
+    x1[n] = x1[n-1] - k*x2[n-1] + b*e[n]
+    x2[n] = x2[n-1] + k*x1[n]
+
+    Sustituyendo x1[n] en la segunda: A = [[1, -k], [k, 1-k^2]], cuyo
+    determinante es 1-k^2+k^2 = 1 para cualquier k. Por eso los polos quedan
+    sobre el circulo unidad aunque k este mal cuantizado (spec 5.1).
+
+    Ojo: det(A) = 1 NO significa que A sea ortogonal. Lo que la rotacion
+    conserva es la forma cuadratica x1^2 + x2^2 - k*x1*x2, no el modulo
+    euclideo.
+    """
+    return ((1.0, -k), (k, 1.0 - k * k))
+
+
+class PR2Int(object):
+    """Un eje del controlador PR: proporcional + resonador de dos integradores.
+
+    Todos los estados y coeficientes son enteros en sus formatos Q; la
+    aritmetica es identica a la que hace PR_2int.vhd.
+    """
+
+    def __init__(self, k_i, b_i, kp_i):
+        self.k = k_i         # Q1.24
+        self.b = b_i         # Q8.24, vale Kr*Ts
+        self.kp = kp_i       # Q8.24
+        self.x1 = 0          # Q8.40
+        self.x2 = 0          # Q8.40
+
+    def reset(self):
+        self.x1 = 0
+        self.x2 = 0
+
+    def paso(self, e, sat):
+        """Un periodo de control. `e` en Q8.24, devuelve `u` en Q8.24."""
+        # k (Q1.24) * x2 (Q8.40) -> Q8.40
+        k_x2 = mul_trunc(self.k, self.x2, 24, 40, 40)
+        # b (Q8.24) * e (Q8.24) -> Q8.40. Congelado si el modulo saturo.
+        b_e = 0 if sat else mul_trunc(self.b, e, 24, 24, 40)
+
+        self.x1 = Q8_40.envolver(self.x1 - k_x2 + b_e)
+        # El segundo integrador usa el x1 YA actualizado (backward).
+        self.x2 = Q8_40.envolver(self.x2 + mul_trunc(self.k, self.x1, 24, 40, 40))
+
+        kp_e = mul_trunc(self.kp, e, 24, 24, 24)
+        return Q8_24.envolver(kp_e + (self.x1 >> 16))   # x1 Q8.40 -> Q8.24
