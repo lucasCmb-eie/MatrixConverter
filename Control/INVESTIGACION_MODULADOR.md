@@ -272,3 +272,68 @@ acotados a dos: el `if (q(7) = '1')` del estado 3 que decide si duplicar
 `cos_phi`, y la tabla de corrimientos de `amp_parcial`.
 
 Es una corrida corta mas.
+
+## Sonda 5 — traza de la division. RETRACTACION del Hallazgo 2
+
+Instrumentados `n_norm`, `q`, `cos_phi`, `aux_div`, `res_div` y `amp_parcial`
+a lo largo de los estados 1 a 8.
+
+    q_cmd = 306
+      est  n_norm    q   cos_phi  aux_div  res_div    amp
+        3      0     306    255       51      307      307
+        4      1     153    255       51      307      614
+        5      2     153    510      308      307     1228
+
+### RETRACTACION
+
+**El Hallazgo 2 de la sonda 4 estaba MAL, y el error era mio.**
+
+La division y su compensacion son CORRECTAS:
+- estado 3: dispara y divide q (306 -> 153), n_norm = 1
+- estado 4: dispara y duplica cos_phi (255 -> 510), n_norm = 2
+- dos divisiones del cociente, n_norm = 2, compensacion x4: correcta
+- `amp_parcial = 1024 * q_cmd / cos_phi` verificado en cuatro puntos:
+      q=204 -> 819 = 1024*204/255
+      q=306 -> 1228 = 1024*306/255
+      razon 1228/819 = 1,499 contra 306/204 = 1,5
+
+El salto de 1,99 a 3,99 que reporte era un artefacto de MI script: calculaba
+la referencia de Casadei con `q_int` (el q ya normalizado, o sea dividido)
+en vez de `q_cmd`. Mi referencia se partio al medio; las duties no se
+duplicaron. Con `q_cmd` el cociente da 1,99 en TODO el barrido, constante.
+
+Tambien queda refutada mi hipotesis de que `n_norm` fuera posicional en vez de
+un contador: aca disparo en estados consecutivos, asi que posicion = cuenta.
+
+### Lo que SI sobrevive
+
+El mecanismo del fold-back: a q_cmd = 306, `S = 1171 > 1024`, `N = 1024 - S`
+(estado 27) hace underflow, la guarda del estado 28 anula los nulos, y el
+patron deja de sumar 2048.
+
+### Hipotesis principal para el factor 2 (y por lo tanto para el techo)
+
+`cos_phi = 255` es el valor de LUT para `cos(0) = 1,0`. O sea que el modulador
+normaliza `i_q_i` **a fondo de escala 255**, mientras el spec, el `Q` de
+create_bd.tcl y el codigo de control lo tratan como fondo de escala **512**.
+
+Con `q_max = 443` el modulador ve `443/255 = 1,74`, casi el doble del 0,866
+pretendido. Eso explica de una:
+- las duties 2x vs la referencia calculada con q_cmd/512
+- que `S` llegue a 1024 a q_cmd ~ 270 en vez de a q_cmd = 443
+- el techo de |v_o| ~ 0,50 y el fold-back mas alla
+
+**Prediccion falsable**: con `i_q_i` a fondo de escala 255, `q_max = 0,866`
+corresponde a `q_word = 221`, no 443. A q_word = 221 la suma `S` deberia
+quedar debajo de 1024 y no deberia haber fold-back en todo el rango util.
+
+Es una corrida corta: barrer q_word de 26 a 221 y verificar que S < 1024
+siempre y que |v_o| crece monotonamente hasta el maximo.
+
+### Nota de metodo
+
+Esta es la SEGUNDA conclusion que tuve que retractar en esta investigacion
+(la primera fue la sonda 3, "la distribucion esta mal"). Las dos veces la
+causa fue la misma: comparar contra una referencia que yo mismo calculaba mal.
+La leccion es que cuando la medicion del RTL y mi referencia discrepan, el
+sospechoso numero uno tiene que ser mi referencia, no el RTL.
