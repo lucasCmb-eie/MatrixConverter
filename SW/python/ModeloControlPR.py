@@ -43,8 +43,14 @@ KP_DEF = 2.0 * math.pi * F_C * L - R                      # 10,1097
 # NO `2*L/tau`, que es lo que decia el spec 5.5: eso tiene unidades de ohm,
 # no de ohm/s, y da 1,2 en vez de 395,6 -- un factor 330 que deja al
 # resonante sin efecto util (error de regimen 27 % en vez de 0,13 %).
-TAU_RES = 20e-3                                           # un periodo de 50 Hz
-KR_DEF = 2.0 * abs(complex(R, 2.0 * math.pi * 50.0 * L)) / TAU_RES   # 395,63
+# tau_res = L/R = 10 ms: el resonante converge tan rapido como la dinamica
+# propia de la carga, no mas. El spec 5.5 decia 20 ms, pero con ese valor el
+# criterio 2 del spec 7.4 (2 % en 60 ms) es inalcanzable: 60 ms son 3*tau y
+# dejan ~5 %. Medido, acelerar el resonante no cuesta estabilidad -- el
+# sobrepico se queda en 0,3 % para tau entre 6 y 20 ms -- asi que se corrige
+# la sintonia en vez de aflojar el criterio.
+TAU_RES = L / R                                           # 10 ms
+KR_DEF = 2.0 * abs(complex(R, 2.0 * math.pi * 50.0 * L)) / TAU_RES   # 791,26
 
 
 def coef_rl(r, l, t):
@@ -264,3 +270,161 @@ def normalizar(mag, inv_vi, q_max):
         q_pu = q_max
     palabra = (q_pu * (1 << Q_BITS)) >> 24
     return max(0, min((1 << Q_BITS) - 1, palabra)), sat
+
+
+class Lazo(object):
+    """Lazo cerrado completo, a Ts, con la planta ZOH en los dos ejes.
+
+    El orden es el mismo que el de ControlLazo.vhd: la senal `sat` que ven
+    los PR es la del Ts ANTERIOR, porque en el RTL sale registrada.
+    """
+
+    def __init__(self, f_o, amp, kp, kr, v_i):
+        self.ref = RefGen(paso_nco(f_o), Q8_24.de_float(amp))
+        k_i = k_q124(f_o)
+        b_i = Q8_24.de_float(kr * TS, redondear=True)
+        kp_i = Q8_24.de_float(kp, redondear=True)
+        self.pr_a = PR2Int(k_i, b_i, kp_i)
+        self.pr_b = PR2Int(k_i, b_i, kp_i)
+        self.planta_a = PlantaRL_Ts()
+        self.planta_b = PlantaRL_Ts()
+        self.inv_vi = Q8_24.de_float(1.0 / v_i, redondear=True)
+        self.q_max = Q1_24.de_float(math.sqrt(3.0) / 2.0, redondear=True)
+        self.v_i = v_i
+        self.freeze_activo = True
+        self.sat_z1 = False
+
+    def amp_nueva(self, amp):
+        self.ref.amp = Q8_24.de_float(amp)
+
+    def correr(self, n_ts):
+        log = []
+        for _ in range(n_ts):
+            ref_a, ref_b = self.ref.paso()
+            e_a = Q8_24.envolver(ref_a - Q8_24.de_float(self.planta_a.i))
+            e_b = Q8_24.envolver(ref_b - Q8_24.de_float(self.planta_b.i))
+
+            congelar = self.sat_z1 and self.freeze_activo
+            v_a = self.pr_a.paso(e_a, congelar)
+            v_b = self.pr_b.paso(e_b, congelar)
+
+            mag, ang = cordic_vec(v_a, v_b)
+            q, sat = normalizar(mag, self.inv_vi, self.q_max)
+            self.sat_z1 = sat
+
+            # El modulador reconstruye v_o = q*V_i*e^(j*al_o).
+            q_pu = q / float(1 << Q_BITS)
+            theta = 2.0 * math.pi * ang / 2048.0
+            self.planta_a.paso(q_pu * self.v_i * math.cos(theta))
+            self.planta_b.paso(q_pu * self.v_i * math.sin(theta))
+
+            log.append({"ref_a": Q8_24.a_float(ref_a),
+                        "ref_b": Q8_24.a_float(ref_b),
+                        "i_a": self.planta_a.i,
+                        "i_b": self.planta_b.i,
+                        "v_a": Q8_24.a_float(v_a),
+                        "v_b": Q8_24.a_float(v_b),
+                        "q": q, "al_o": ang, "sat": sat})
+        return log
+
+
+# --- generacion del paquete de vectores para los TB ----------------------
+N_VECTORES = 512
+
+
+def _hex_vhdl(v, bits):
+    """Literal hexadecimal VHDL de `bits` bits en complemento a dos.
+
+    Se usa en vez de to_signed() porque el `integer` de VHDL-93 es de 32 bits
+    y los estados x1/x2 son de 48: to_signed(3.5e12, 48) no compila.
+    """
+    assert bits % 4 == 0, "un literal hex necesita un ancho multiplo de 4"
+    return 'x"%0*X"' % (bits // 4, v & ((1 << bits) - 1))
+
+
+def _vectores_pr():
+    """Estimulo y respuesta esperada de un eje del PR, a 50 Hz."""
+    pr = PR2Int(k_q124(50.0),
+                Q8_24.de_float(KR_DEF * TS, redondear=True),
+                Q8_24.de_float(KP_DEF, redondear=True))
+    filas = []
+    for n in range(N_VECTORES):
+        # Fundamental + una septima, para que el resonante tenga algo que
+        # rechazar ademas de algo que seguir.
+        e = Q8_24.de_float(0.3 * math.sin(2 * math.pi * 50.0 * n * TS)
+                           + 0.05 * math.sin(2 * math.pi * 350.0 * n * TS))
+        sat = 200 <= n < 260          # tramo forzado, para ejercitar el freeze
+        u = pr.paso(e, sat)
+        filas.append((e, 1 if sat else 0, u, pr.x1, pr.x2))
+    return filas
+
+
+def _emitir_paquete(ruta):
+    filas = _vectores_pr()
+    k = k_q124(50.0)
+    b = Q8_24.de_float(KR_DEF * TS, redondear=True)
+    kp = Q8_24.de_float(KP_DEF, redondear=True)
+
+    with open(ruta, "w") as f:
+        f.write("-- GENERADO POR SW/python/ModeloControlPR.py -- NO EDITAR A MANO\n")
+        f.write("-- Regenerar con: python SW/python/ModeloControlPR.py vectores\n")
+        f.write("--\n")
+        f.write("-- Estimulo y respuesta esperada de un eje de PR_2int, sacados del\n")
+        f.write("-- modelo de oro. El TB los replay ciclo a ciclo y compara bit a bit.\n")
+        f.write("library ieee;\n")
+        f.write("use ieee.std_logic_1164.all;\n")
+        f.write("use ieee.numeric_std.all;\n\n")
+        f.write("package vectores_pr_pkg is\n\n")
+        f.write("    constant N_VEC : integer := %d;\n\n" % len(filas))
+        f.write("    constant K_PR  : signed(24 downto 0) := to_signed(%d, 25);\n" % k)
+        f.write("    constant B_PR  : signed(31 downto 0) := to_signed(%d, 32);\n" % b)
+        f.write("    constant KP_PR : signed(31 downto 0) := to_signed(%d, 32);\n\n" % kp)
+
+        for nombre, idx, ancho in (("E", 0, 32), ("U", 2, 32),
+                                   ("X1", 3, 48), ("X2", 4, 48)):
+            tipo = "t_vec%d" % ancho
+            if nombre in ("E", "X1"):
+                f.write("    type %s is array (0 to N_VEC-1) of signed(%d downto 0);\n"
+                        % (tipo, ancho - 1))
+            f.write("    constant VEC_%s : %s := (\n" % (nombre, tipo))
+            f.write(",\n".join("        " + _hex_vhdl(fila[idx], ancho)
+                               for fila in filas))
+            f.write("\n    );\n\n")
+
+        f.write("    type t_sat is array (0 to N_VEC-1) of std_logic;\n")
+        f.write("    constant VEC_SAT : t_sat := (\n")
+        f.write(",\n".join("        '%d'" % fila[1] for fila in filas))
+        f.write("\n    );\n\n")
+        f.write("end package vectores_pr_pkg;\n")
+
+
+def main():
+    import sys
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "params"
+    if cmd == "params":
+        a0, a1, b1 = coef_rl_q824(R, L, T_CLK)
+        z = abs(complex(R, 2.0 * math.pi * 50.0 * L))
+        print("R = %.4f ohm   L = %.6f H   tau = L/R = %.3f ms" % (R, L, 1e3 * L / R))
+        print("|Z(2pi*50)| = %.4f ohm   i_max = q_max/|Z| = %.4f pu"
+              % (z, (math.sqrt(3.0) / 2.0) / z))
+        print("Ts = %.4f us   N_CLK_TS = %d" % (1e6 * TS, N_CLK_TS))
+        print("")
+        print("create_bd.tcl: Coef_a0 = Coef_a1 = %d   Coef_b1 = %d" % (a0, b1))
+        print("k(50 Hz)   Q1.24 = %d = 0x%X" % (k_q124(50.0), k_q124(50.0)))
+        print("paso_nco(50 Hz)  = %d = 0x%X" % (paso_nco(50.0), paso_nco(50.0)))
+        print("Kp = %.4f    Q8.24 = %d" % (KP_DEF, Q8_24.de_float(KP_DEF, redondear=True)))
+        print("Kr = %.4f   b = Kr*Ts  Q8.24 = %d"
+              % (KR_DEF, Q8_24.de_float(KR_DEF * TS, redondear=True)))
+        print("1/K_cordic Q8.24 = %d  (K = %.8f)" % (INV_K_Q824, K_CORDIC))
+        print("q_max = sqrt(3)/2  Q8.24 = %d"
+              % Q8_24.de_float(math.sqrt(3.0) / 2.0, redondear=True))
+    elif cmd == "vectores":
+        ruta = "../../HW/src/tb/vectores_pr_pkg.vhd"
+        _emitir_paquete(ruta)
+        print("escrito %s (%d vectores)" % (ruta, N_VECTORES))
+    else:
+        raise SystemExit("uso: ModeloControlPR.py [params|vectores]")
+
+
+if __name__ == "__main__":
+    main()

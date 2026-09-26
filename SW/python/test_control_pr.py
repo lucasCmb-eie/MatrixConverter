@@ -142,8 +142,10 @@ class TestPR(unittest.TestCase):
         # 2*L/tau, que tiene unidades de ohm y da 1,2 en vez de 395,6.
         z = abs(complex(m.R, 2 * math.pi * 50.0 * m.L))
         self.assertAlmostEqual(z, 3.9563, places=4)
-        self.assertAlmostEqual(m.KR_DEF, 2.0 * z / 20e-3, places=3)
-        self.assertEqual(Q8_24.de_float(m.KR_DEF * m.TS, redondear=True), 1359371)
+        self.assertAlmostEqual(m.KR_DEF, 2.0 * z / m.TAU_RES, places=3)
+        # tau_res = L/R = 10 ms, la constante de tiempo propia de la carga.
+        self.assertAlmostEqual(m.TAU_RES, 10e-3, places=6)
+        self.assertEqual(Q8_24.de_float(m.KR_DEF * m.TS, redondear=True), 2718742)
 
     def test_sigue_la_referencia_en_amplitud_y_fase(self):
         # Criterio 1 del spec 7.4, en la version que es alcanzable: el lazo
@@ -272,6 +274,66 @@ class TestCordic(unittest.TestCase):
         q, sat = m.normalizar(0, Q8_24.de_float(1.0), Q1_24.de_float(0.866))
         self.assertEqual(q, 0)
         self.assertFalse(sat)
+
+
+class TestLazo(unittest.TestCase):
+
+    # Con V_i = 1 p.u. y |Z(w_o)| = 3,956 ohm, la corriente maxima que el
+    # conversor puede entregar es q_max/|Z| = 0,866/3,956 = 0,219 p.u.
+    # Todas las amplitudes de prueba tienen que quedar por debajo.
+    I_MAX = 0.219
+
+    def _lazo(self, amp=0.10, f_o=50.0):
+        return m.Lazo(f_o=f_o, amp=amp, kp=m.KP_DEF, kr=m.KR_DEF, v_i=1.0)
+
+    def test_regimen_sigue_la_referencia(self):
+        # Criterio 1 del spec 7.4, en amplitud del fundamental.
+        log = self._lazo().correr(3000)
+        cola = log[2000:]
+        pico_ref = max(abs(r["ref_a"]) for r in cola)
+        pico_med = max(abs(r["i_a"]) for r in cola)
+        self.assertLess(abs(pico_med - pico_ref) / pico_ref, 0.01)
+
+    def test_escalon_de_amplitud_se_establece(self):
+        # Criterio 2: sobrepico < 20 %, establecimiento al 2 % en < 60 ms.
+        lazo = self._lazo(amp=0.05)
+        lazo.correr(1500)
+        lazo.amp_nueva(0.15)
+        log = lazo.correr(int(round(60e-3 / m.TS)))
+        pico = max(abs(r["i_a"]) for r in log)
+        self.assertLess(pico / 0.15, 1.20, "sobrepico")
+        cola = log[-100:]
+        pico_final = max(abs(r["i_a"]) for r in cola)
+        self.assertLess(abs(pico_final - 0.15) / 0.15, 0.02, "establecimiento")
+
+    def test_sobrecomando_satura_y_avisa(self):
+        lazo = self._lazo(amp=3.0)
+        log = lazo.correr(600)
+        self.assertTrue(any(r["sat"] for r in log))
+
+    def test_el_freeze_reduce_el_sobrepico_al_desaturar(self):
+        # Criterio 4 del spec 7.4, en version diferencial: el anti-windup
+        # tiene que HACER algo, no solo estar presente.
+        def prueba(freeze):
+            lazo = self._lazo(amp=0.10)
+            lazo.freeze_activo = freeze
+            lazo.correr(600)
+            lazo.amp_nueva(3.0)              # por encima de q_max
+            lazo.correr(300)
+            lazo.amp_nueva(0.10)
+            log = lazo.correr(600)
+            # Los estados no tienen que haber envuelto: si envuelven, la
+            # comparacion mide basura y no windup.
+            sin_wrap = all(abs(x) < Q8_40.hi * 0.9
+                           for x in (lazo.pr_a.x1, lazo.pr_a.x2))
+            return max(abs(r["i_a"]) for r in log), sin_wrap
+
+        pico_freeze, ok_freeze = prueba(True)
+        pico_libre, ok_libre = prueba(False)
+        self.assertTrue(ok_freeze, "con freeze los estados envolvieron")
+        self.assertTrue(ok_libre, "sin freeze los estados envolvieron")
+        self.assertLess(pico_freeze, pico_libre,
+                        "el freeze no esta reduciendo el windup")
 
 
 if __name__ == "__main__":

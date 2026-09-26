@@ -33,3 +33,7 @@ HW/src/bd/*/*
 
 # Documentacion de trabajo (planes/specs de superpowers)
 docs/
+
+# Artefactos de GHDL (verificacion local de los bloques VHDL-93)
+work-obj*.cf
+*.o
