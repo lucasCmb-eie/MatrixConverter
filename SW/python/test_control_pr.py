@@ -224,5 +224,55 @@ class TestPR(unittest.TestCase):
             self.assertLessEqual(pr.x2, Q8_40.hi)
 
 
+class TestRefGen(unittest.TestCase):
+
+    def test_amplitud_y_cuadratura(self):
+        ref = m.RefGen(m.paso_nco(50.0), Q8_24.de_float(0.5))
+        pico_a = 0.0
+        muestras = []
+        for _ in range(int(round(1.0 / 50.0 / m.TS))):    # un periodo
+            a, b = ref.paso()
+            muestras.append((Q8_24.a_float(a), Q8_24.a_float(b)))
+            pico_a = max(pico_a, abs(Q8_24.a_float(a)))
+        self.assertAlmostEqual(pico_a, 0.5, places=2)
+        # alfa y beta en cuadratura: alfa^2 + beta^2 constante.
+        radios = [math.hypot(a, b) for a, b in muestras]
+        self.assertAlmostEqual(max(radios), min(radios), places=2)
+
+
+class TestCordic(unittest.TestCase):
+
+    def test_modulo_y_angulo(self):
+        for x, y, mag, ang_deg in ((1.0, 0.0, 1.0, 0.0),
+                                   (0.0, 2.0, 2.0, 90.0),
+                                   (-1.0, -1.0, math.sqrt(2.0), 225.0)):
+            mg, an = m.cordic_vec(Q8_24.de_float(x), Q8_24.de_float(y))
+            self.assertAlmostEqual(Q8_24.a_float(mg), mag, places=3)
+            self.assertAlmostEqual(an * 360.0 / 2048.0, ang_deg, places=0)
+
+    def test_entrada_cero(self):
+        # Review Focus 4: (0,0) da modulo 0; el angulo es irrelevante pero
+        # tiene que ser un valor definido, no una excepcion.
+        mg, an = m.cordic_vec(0, 0)
+        self.assertEqual(mg, 0)
+        self.assertIsInstance(an, int)
+        self.assertTrue(0 <= an < 2048)
+
+    def test_normalizar_satura_y_avisa(self):
+        inv_vi = Q8_24.de_float(1.0)
+        q_max = Q1_24.de_float(0.866)
+        q, sat = m.normalizar(Q8_24.de_float(0.5), inv_vi, q_max)
+        self.assertFalse(sat)
+        self.assertAlmostEqual(q / 512.0, 0.5, places=2)
+        q, sat = m.normalizar(Q8_24.de_float(1.5), inv_vi, q_max)
+        self.assertTrue(sat)
+        self.assertAlmostEqual(q / 512.0, 0.866, places=2)
+
+    def test_normalizar_entrada_cero_da_q_cero(self):
+        q, sat = m.normalizar(0, Q8_24.de_float(1.0), Q1_24.de_float(0.866))
+        self.assertEqual(q, 0)
+        self.assertFalse(sat)
+
+
 if __name__ == "__main__":
     unittest.main()

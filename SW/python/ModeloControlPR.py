@@ -180,3 +180,87 @@ class PR2Int(object):
 
         kp_e = mul_trunc(self.kp, e, 24, 24, 24)
         return Q8_24.envolver(kp_e + (self.x1 >> 16))   # x1 Q8.40 -> Q8.24
+
+
+# --- CORDIC en modo vectoring --------------------------------------------
+ITER_CORDIC = 20
+
+K_CORDIC = 1.0
+for _i in range(ITER_CORDIC):
+    K_CORDIC *= math.sqrt(1.0 + 2.0 ** (-2 * _i))
+
+INV_K_Q824 = Q8_24.de_float(1.0 / K_CORDIC, redondear=True)
+
+
+def cordic_vec(x, y, iteraciones=ITER_CORDIC):
+    """CORDIC vectoring en Q8.24: devuelve (modulo Q8.24, angulo 11 bits).
+
+    El angulo usa la misma codificacion BAM de 11 bits que CORDIC_atan2.vhd
+    y red_sector.vhd: 2048 pasos para una vuelta completa.
+    """
+    if x == 0 and y == 0:
+        return 0, 0
+
+    # Pre-rotacion al semiplano x >= 0, como hace el RTL.
+    if x < 0:
+        x, y = -x, -y
+        z = 1024                      # media vuelta en 11 bits
+    else:
+        z = 0
+
+    for i in range(iteraciones):
+        dx = x >> i
+        dy = y >> i
+        paso = int(round(math.atan(2.0 ** (-i)) * 2048.0 / (2.0 * math.pi)))
+        if y < 0:
+            x, y, z = x - dy, y + dx, z - paso
+        else:
+            x, y, z = x + dy, y - dx, z + paso
+
+    mag = mul_trunc(x, INV_K_Q824, 24, 24, 24)
+    return mag, z % 2048
+
+
+# --- generador de referencia ---------------------------------------------
+class RefGen(object):
+    """NCO que emite la referencia directamente en alfa/beta.
+
+    El acumulador de fase es de 32 bits y avanza `paso_fase` por periodo de
+    control, igual que el i_frec de AC_Source pero muestreado a Ts.
+
+    Ojo: este modelo usa math.cos/sin, mientras que RefGen.vhd usa la LUT de
+    seno del repo. No son bit a bit iguales, y no hace falta que lo sean: el
+    paquete de vectores solo lleva los del PR, y tb_RefGen verifica
+    propiedades (amplitud, cuadratura), no igualdad contra este modelo.
+    """
+
+    def __init__(self, paso_fase, amp_i):
+        self.paso_fase = paso_fase * N_CLK_TS     # avance por Ts, no por clk
+        self.amp = amp_i                          # Q8.24
+        self.fase = 0
+
+    def paso(self):
+        theta = 2.0 * math.pi * (self.fase / 2.0**32)
+        a = mul_trunc(self.amp, Q8_24.de_float(math.cos(theta)), 24, 24, 24)
+        b = mul_trunc(self.amp, Q8_24.de_float(math.sin(theta)), 24, 24, 24)
+        self.fase = (self.fase + self.paso_fase) % (2**32)
+        return a, b
+
+
+# --- normalizacion y saturacion ------------------------------------------
+Q_BITS = 9                                # ancho de i_q_i
+
+
+def normalizar(mag, inv_vi, q_max):
+    """De |v*| en Q8.24 a la palabra q de 9 bits que toma el modulador.
+
+    q_max viene en Q1.24 y mag*inv_vi queda en Q8.24: los dos tienen 24 bits
+    fraccionarios, asi que se comparan directo. La palabra de salida es q
+    escalado por 512, que es la codificacion de i_q_i.
+    """
+    q_pu = mul_trunc(mag, inv_vi, 24, 24, 24)     # Q8.24
+    sat = q_pu > q_max
+    if sat:
+        q_pu = q_max
+    palabra = (q_pu * (1 << Q_BITS)) >> 24
+    return max(0, min((1 << Q_BITS) - 1, palabra)), sat
