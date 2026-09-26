@@ -143,14 +143,26 @@ proc mk_const {nombre ancho valor} {
 mk_const Q       9  180
 # sin desfase entre corriente de salida y tension de entrada
 mk_const Phi_I   11 0
-# Carga RL discretizada por Tustin a Ts = 100 ns:
-#   R = 0,012002 ohm, L = 1,200191e-4 H, tau = L/R = 10 ms
-#   a0 = a1 = 1/(R + 2L/Ts) = 4,16597e-4 -> 6989 en Q8.24     (0x00001B4D)
-#   b1 = (2L/Ts - R)/(2L/Ts + R) = 0,99998999 -> 16777048     (0x00FFFF58)
+# Carga RL discretizada por Tustin a T = 100 ns (RL_fase no tiene enable:
+# avanza en cada flanco del reloj, no una vez por Ts):
+#   R = 1,2 ohm, L = 12 mH, tau = L/R = 10 ms
+#   a0 = a1 = T/(2L + R*T) = 4,16666e-6 -> 70 en Q8.24        (0x00000046)
+#   b1 = (2L - R*T)/(2L + R*T) = 0,99998999 -> 16777048       (0x00FFFF58)
+# Regenerar con: python SW/python/ModeloControlPR.py params
+#
+# CAMBIO 2026-09-26: antes decia a0 = a1 = 6989, que corresponde a
+# R = 12 mOhm y L = 120 uH. Misma tau -- por eso b1 no cambia, solo depende
+# de L/R -- pero 100x la ganancia, y no coincidia con el R = 1,2 / L = 12 mH
+# de SW/matlab/LecturaDatosVivado.m. Se unifica en el valor de MATLAB por dos
+# razones: el post-procesado offline y la simulacion tienen que modelar la
+# misma carga, y con L = 120 uH el coeficiente b = Kr*Ts del resonante queda
+# en 41 cuentas de Q8.24 (1,2 % de error de cuantizacion) contra 4123 con
+# L = 12 mH (0,012 %).
+#
 # OJO: el encabezado de RL_fase.vhd dice "- b1*I[n-1]" pero la implementacion
 # (linea 94) suma, asi que b1 va POSITIVO.
-mk_const Coef_a0 32 6989
-mk_const Coef_a1 32 6989
+mk_const Coef_a0 32 70
+mk_const Coef_a1 32 70
 mk_const Coef_b1 32 16777048
 # relleno de las ranuras de CaptureBank que no se usan en este banco
 mk_const Cero32  32 0
