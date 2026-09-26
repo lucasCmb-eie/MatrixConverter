@@ -162,3 +162,54 @@ veces el tiempo que corresponde. Candidatos, en orden:
 
 El fold-back arriba de q = 0,6 es a su vez un tercer mecanismo: desborde del
 presupuesto de duties que reinyecta tiempo nulo.
+
+## Sonda 3 — patron de conmutacion ciclo a ciclo (2026-09-26)
+
+Registrada la palabra de 9 bits en cada clock durante 20 Ts, con
+`o_direcciones` expuesto, y reconstruido por run-length encoding.
+
+Ejemplo (Ts 1, Kv=1, Ki=6):
+
+    0a:5 0c:115 -7:11 +8:113 +1:62 -2:601 0a:232 -2:601 +1:62 +8:113 -7:11 0c:115 0a:7
+
+### Lo que queda ESTABLECIDO
+
+1. **La estructura SSVM de 13 slots es correcta.** Nulo en los bordes, cuatro
+   activos, nulo central, y el espejo. Los duraciones suman 2048 exactos.
+2. **Los cuatro vectores activos son identificables y estructuralmente
+   plausibles**: dos de un grupo de Casadei y dos de otro (aca -7,+8 del
+   grupo 3 y +1,-2 del grupo 1).
+3. **El tiempo activo total es 1,84 a 1,93 veces el que las duties de Casadei
+   requieren.** Esto es robusto: es una suma, no depende del emparejamiento
+   duty-vector ni del origen de sectores.
+4. La DISTRIBUCION entre los cuatro no coincide con los cuatro productos de
+   cosenos, para ningun origen de sector que probe (barrido de offsets: el
+   mejor deja 48 % de error de forma).
+
+### Lo que NO queda establecido
+
+El punto 4 es mas debil que los otros tres: encadena tres supuestos mios
+(mi reduccion de sector, el emparejamiento duty->slot, y la normalizacion de
+la formula de Casadei). No alcanza para acusar al calculo de duties.
+
+Tampoco se resuelve la contradiccion central:
+
+  - |v_o| medido = 1,04 * q, que es correcto por definicion de q.
+  - tiempo activo medido = 1,93 * q, contra 1,05 * q esperado.
+
+Si las duties fueran uniformemente 1,84x grandes, la tension TAMBIEN seria
+1,84x. No lo es. Y si se las dividiera por dos, el tiempo activo cerraria
+pero la tension caeria a 0,52*q, que es peor. Una de las dos normalizaciones
+que estoy usando esta mal, y no puedo distinguir cual sin medir los `dela`
+directamente.
+
+### Proximo paso, que elimina TODOS mis supuestos
+
+Loguear `dela01..dela13`, `al_ot`, `be_it`, `kv`, `ki` y `q` por acceso
+jerarquico de XSIM (`<< signal .tb.dut...>>`, VHDL-2008) y compararlos uno a
+uno contra `1024 * delta_k` de Casadei. Eso mide los coeficientes que el
+modulador realmente calcula, sin reconstruirlos desde el patron aplicado y sin
+depender de mi reduccion de sector: `al_ot` y `be_it` salen del propio
+`red_sector`.
+
+Es la medicion que deberia haber hecho de entrada en vez de reconstruir.
