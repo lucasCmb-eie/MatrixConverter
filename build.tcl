@@ -46,6 +46,9 @@ set files [list \
   [file normalize "${origin_dir}/HW/src/hdl/wrappers/RL_bd.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/wrappers/SVM_wrapper.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/wrappers/TClark_wrapper.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/control/PR_2int.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/control/RefGen.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/control/ControlLazo.vhd"] \
  ]
  add_files -norecurse -fileset $obj $files
 
@@ -98,6 +101,12 @@ set files [list \
  [file normalize "${origin_dir}/HW/src/tb/tb_SVM_FoutVar.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_SVM_FinVar.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_CaptureBank.vhd"] \
+ [file normalize "${origin_dir}/HW/src/tb/vectores_pr_pkg.vhd"] \
+ [file normalize "${origin_dir}/HW/src/tb/tb_PR_2int.vhd"] \
+ [file normalize "${origin_dir}/HW/src/tb/tb_RefGen.vhd"] \
+ [file normalize "${origin_dir}/HW/src/tb/tb_CORDIC_vec.vhd"] \
+ [file normalize "${origin_dir}/HW/src/tb/tb_ControlCorriente.vhd"] \
+ [file normalize "${origin_dir}/HW/src/tb/tb_criterios.vhd"] \
 ]
 add_files -norecurse -fileset $obj $files
 

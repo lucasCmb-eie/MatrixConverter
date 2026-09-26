@@ -146,7 +146,21 @@ begin
                         angle_out <= unsigned(z_reg(31 downto 21));
                         -- x_reg quedo en K*sqrt(x^2+y^2): compensamos K.
                         mag_prod := x_reg * INV_K;
-                        mag_out <= mag_prod(55 downto 24);
+                        -- SATURAR, no envolver. En vectoring x_reg converge a
+                        -- K*|v| con K = 1,647, asi que en Q8.24 (tope 128)
+                        -- empieza a envolver cerca de |v| = 77,7. Si mag_out
+                        -- saliera negativo, el lazo lo lee como q negativo, NO
+                        -- declara saturacion, y el anti-windup se apaga justo
+                        -- cuando mas hace falta: realimentacion positiva sobre
+                        -- el windup. Un modulo no puede ser negativo, asi que
+                        -- el signo puesto solo puede venir de un desborde, y la
+                        -- respuesta correcta es el maximo.
+                        if mag_prod(63) = '1' or
+                           mag_prod(62 downto 55) /= "00000000" then
+                            mag_out <= x"7FFFFFFF";
+                        else
+                            mag_out <= mag_prod(55 downto 24);
+                        end if;
                         done <= '1';
                         state <= IDLE;
                         

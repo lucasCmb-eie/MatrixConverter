@@ -116,13 +116,20 @@ class PlantaRL_Clk(object):
 
     RL_fase no tiene enable, asi que avanza en cada flanco del reloj.
 
-    Los tres productos se suman con los 48 bits fraccionarios completos y se
-    trunca UNA sola vez al final, que es lo que hace el RTL: mult_a0/a1/b1
-    son sfixed(..downto -48) y el unico resize a Q8.24 esta en I_n.
+    Los tres productos se suman con los 48 bits fraccionarios completos y la
+    reduccion a Q8.24 ocurre UNA sola vez al final: mult_a0/a1/b1 son
+    sfixed(..downto -48) y el unico resize a Q8.24 esta en I_n.
 
-    Ese unico truncamiento igual cuesta caro: como b1 = 0,99999, el medio LSB
-    que se pierde en b1*I[n-1] queda amplificado por 1/(1-b1) ~ 1e5 y deja un
-    error de ganancia DC sistematico de -0,71 %.
+    Ojo con el estilo de esa reduccion. RL_fase pasa `fixed_wrap,
+    fixed_truncate` explicitos en los tres productos y en sum_inputs, pero el
+    resize final (lineas 101 y 106) va SIN estilos, y los defaults de
+    ieee.fixed_pkg son fixed_saturate y fixed_round. O sea: redondea al mas
+    cercano y satura, no trunca y envuelve. Es justo el unico punto del filtro
+    donde eso importa.
+
+    Aun redondeando, el medio LSB que se pierde en b1*I[n-1] queda amplificado
+    por 1/(1-b1) ~ 1e5, porque b1 = 0,99999: queda un error de ganancia DC
+    sistematico de -0,36 %. Truncando seria el doble.
     """
 
     def __init__(self, r=R, l=L, t=T_CLK):
@@ -132,7 +139,8 @@ class PlantaRL_Clk(object):
 
     def paso(self, u):
         suma = self.a0 * u + self.a1 * self.u_z1 + self.b1 * self.i_z1
-        i = Q8_24.envolver(suma >> 24)
+        # fixed_round: al mas cercano. fixed_saturate: clampea, no envuelve.
+        i = Q8_24.saturar((suma + (1 << 23)) >> 24)
         self.u_z1 = u
         self.i_z1 = i
         return i

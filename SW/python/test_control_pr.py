@@ -100,14 +100,19 @@ class TestPlanta(unittest.TestCase):
             i = p.paso(1.0)
         self.assertAlmostEqual(i, 1.0 / m.R, places=3)
 
-    def test_el_modelo_de_10mhz_tiene_el_sesgo_de_truncamiento_de_rl_fase(self):
-        # RL_fase trunca el producto b1*I[n-1], y como b1 = 0,99999 ese error
-        # de medio LSB queda amplificado por 1/(1-b1) ~ 1e5. Da un error de
-        # ganancia DC sistematico y NEGATIVO de ~0,7 %, que no es un defecto
-        # del modelo sino una propiedad del RTL tal como esta hoy.
+    def test_el_modelo_de_10mhz_tiene_el_sesgo_de_redondeo_de_rl_fase(self):
+        # El resize final de RL_fase (lineas 101 y 106) va SIN estilos, asi
+        # que usa los defaults de ieee.fixed_pkg: fixed_round y
+        # fixed_saturate, no truncate/wrap como los otros tres resize del
+        # archivo. Aun redondeando, el medio LSB que se pierde en b1*I[n-1]
+        # queda amplificado por 1/(1-b1) ~ 1e5 (b1 = 0,99999) y deja un error
+        # de ganancia DC sistematico y NEGATIVO de 0,357 %. Truncando seria
+        # el doble, 0,714 %: ese valor es el que tendria si alguien le pusiera
+        # `fixed_truncate` explicito al resize final.
         #
-        # El PR lo absorbe, porque tiene ganancia enorme en w_o, pero hay que
-        # tenerlo anotado: la planta que ve el control no es la analitica.
+        # No es un defecto del modelo, es una propiedad del RTL. El PR lo
+        # absorbe porque tiene ganancia enorme en w_o, pero conviene tenerlo
+        # anotado: la planta que ve el control no es la analitica.
         p = m.PlantaRL_Clk()
         u = Q8_24.de_float(1.0)
         for _ in range(500 * m.N_CLK_TS):
@@ -115,9 +120,10 @@ class TestPlanta(unittest.TestCase):
         i_clk = Q8_24.a_float(i_q)
         ideal = 1.0 / m.R
         error = (ideal - i_clk) / ideal
-        self.assertLess(i_clk, ideal, "el sesgo de truncamiento es negativo")
-        self.assertGreater(error, 0.005, "medido 0,71 %; si bajo, cambio el RTL")
-        self.assertLess(error, 0.010, "medido 0,71 %; si subio, cambio el RTL")
+        self.assertLess(i_clk, ideal, "el sesgo es negativo")
+        self.assertGreater(error, 0.003, "medido 0,357 %; si bajo, cambio el RTL")
+        self.assertLess(error, 0.005, "medido 0,357 %; si subio a ~0,71 %, "
+                                      "alguien le puso fixed_truncate al resize")
 
 
 class TestPR(unittest.TestCase):
@@ -214,16 +220,45 @@ class TestPR(unittest.TestCase):
         self.assertAlmostEqual(invariante(*antes),
                                invariante(pr.x1, pr.x2), places=9)
 
-    def test_error_maximo_no_desborda_los_estados(self):
-        # Review Focus 5: e en el extremo de Q8.24 durante muchos Ts.
-        pr = self._pr()
-        e_max = Q8_24.hi
-        for _ in range(500):
-            pr.paso(e_max, sat=False)
-            self.assertGreaterEqual(pr.x1, Q8_40.lo)
-            self.assertLessEqual(pr.x1, Q8_40.hi)
-            self.assertGreaterEqual(pr.x2, Q8_40.lo)
-            self.assertLessEqual(pr.x2, Q8_40.hi)
+    def _estado_ideal(self, e, n, f_o=50.0):
+        """La misma recurrencia que PR2Int pero SIN envolver, para poder ver
+        si el estado real se salio de Q8.40. Asertar sobre pr.x1 directamente
+        no sirve: `paso` aplica envolver() y los limites se cumplen siempre."""
+        k = m.k_q124(f_o)
+        b = Q8_24.de_float(m.KR_DEF * m.TS, redondear=True)
+        x1 = x2 = 0
+        pico = 0
+        for _ in range(n):
+            x1 = x1 - ((k * x2) >> 24) + ((b * e) >> 8)
+            x2 = x2 + ((k * x1) >> 24)
+            pico = max(pico, abs(x1), abs(x2))
+        return x1, x2, pico
+
+    def test_headroom_de_los_estados_en_el_rango_de_operacion(self):
+        # Review Focus 5 y 2, medidos de verdad. El error fisicamente
+        # alcanzable es |ref|max + |i|max ~ 0,26 pu; probamos hasta 1,0, que
+        # es casi 4x eso. El pico del estado crece 5,04 por pu de error.
+        for e_pu in (0.1, 0.25, 0.5, 1.0):
+            e = Q8_24.de_float(e_pu)
+            x1_id, x2_id, pico = self._estado_ideal(e, 2000)
+            self.assertLess(Q8_40.a_float(pico), 0.5 * Q8_40.a_float(Q8_40.hi),
+                            "sin 2x de margen en Q8.40 para |e| = %.2f" % e_pu)
+            # Y el modelo real tiene que coincidir con el ideal: si difiere,
+            # es que envolvio.
+            pr = self._pr()
+            for _ in range(2000):
+                pr.paso(e, sat=False)
+            self.assertEqual((pr.x1, pr.x2), (x1_id, x2_id),
+                             "el estado envolvio con |e| = %.2f pu" % e_pu)
+
+    def test_el_estado_envuelve_fuera_del_rango_fisico(self):
+        # El limite conocido, fijado a proposito: con e en el extremo de
+        # Q8.24 (128 pu, unas 500 veces lo fisicamente alcanzable) el estado
+        # SI se sale de Q8.40 y envuelve en silencio. Se acepta porque ese
+        # error no puede existir; el test esta para que si alguien achica el
+        # ancho del estado o sube Kr, el margen real quede a la vista.
+        _, _, pico = self._estado_ideal(Q8_24.hi, 500)
+        self.assertGreater(Q8_40.a_float(pico), Q8_40.a_float(Q8_40.hi))
 
 
 class TestRefGen(unittest.TestCase):

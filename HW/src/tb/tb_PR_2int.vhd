@@ -42,6 +42,31 @@ begin
         -- Review Focus 1: el resonante ideal no amortigua, asi que cualquier
         -- basura inicial se queda para siempre. El reset TIENE que dejar los
         -- estados exactamente en cero.
+        --
+        -- Ojo: asertar cero aca sin ensuciar antes NO prueba nada, porque los
+        -- signals de PR_2int estan inicializados a cero en su declaracion y
+        -- la asercion pasaria aunque la rama de reset no existiera. Primero
+        -- se ensucia el estado, se verifica que quedo sucio, y RECIEN AHI se
+        -- pulsa el reset.
+        for n in 0 to 39 loop
+            e   <= VEC_E(n);
+            sat <= '0';
+            en  <= '1';
+            wait until rising_edge(clk);
+            en  <= '0';
+            wait until rising_edge(clk);
+        end loop;
+
+        assert x1 /= to_signed(0, 48) or x2 /= to_signed(0, 48)
+            report "el estimulo no logro ensuciar el estado; el test de reset "
+                 & "no probaria nada" severity failure;
+
+        rst <= '1';
+        wait until rising_edge(clk);
+        wait until rising_edge(clk);
+        rst <= '0';
+        wait until rising_edge(clk);
+
         assert x1 = to_signed(0, 48) and x2 = to_signed(0, 48)
             report "el reset no dejo x1/x2 en cero" severity failure;
 

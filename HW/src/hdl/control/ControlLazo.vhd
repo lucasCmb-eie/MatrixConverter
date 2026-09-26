@@ -200,7 +200,17 @@ begin
                     when NORMALIZA =>
                         -- |v*| (Q8.24) * 1/V_i (Q8.24) = Q16.48 -> Q8.24
                         prod := cordic_mag * signed(i_inv_vi);
-                        q_24 := prod(55 downto 24);
+
+                        -- Un desborde del producto se trata como saturacion, no
+                        -- como q chico: si q_24 saliera negativo por wrap, la
+                        -- comparacion de abajo no entraria, sat quedaria en '0'
+                        -- y el anti-windup se apagaria con el integrador
+                        -- disparado. Ante un desborde, saturar es lo seguro.
+                        if prod(63) = '1' or prod(62 downto 55) /= "00000000" then
+                            q_24 := signed(i_q_max);
+                        else
+                            q_24 := prod(55 downto 24);
+                        end if;
 
                         if q_24 > signed(i_q_max) then
                             q_24    := signed(i_q_max);

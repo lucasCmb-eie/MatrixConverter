@@ -82,6 +82,27 @@ begin
             report "(0,0) no dio modulo cero: " & integer'image(to_integer(mag))
             severity failure;
 
+        -- Cuarto cuadrante (x>0, y<0): el unico camino de pre-rotacion con
+        -- z_reg decreciente que no se ejercitaba.
+        medir(UNO, -UNO);
+        assert abs(to_integer(mag) - 23726566) < UNO / 100
+            report "modulo de (1,-1) mal: " & integer'image(to_integer(mag))
+            severity failure;
+        assert abs(to_integer(ang) - 1792) < 8
+            report "angulo de (1,-1) mal: " & integer'image(to_integer(ang))
+            severity failure;
+
+        -- Modulo grande: en vectoring x_reg converge a K*|v| con K = 1,647,
+        -- asi que en Q8.24 (tope 128) empieza a envolver cerca de |v| = 77,7.
+        -- mag_out tiene que SATURAR, no envolver: si sale negativo, el lazo
+        -- lo lee como q negativo, no declara saturacion, y el anti-windup se
+        -- apaga justo cuando mas hace falta.
+        medir(100 * UNO, 0);
+        assert to_integer(mag) > 0
+            report "modulo de (100,0) salio negativo: el CORDIC envolvio en "
+                 & "vez de saturar (mag = " & integer'image(to_integer(mag)) & ")"
+            severity failure;
+
         report "CORDIC_vec OK" severity note;
         fin <= true;
         wait;
