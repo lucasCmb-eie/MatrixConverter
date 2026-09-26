@@ -337,3 +337,67 @@ Esta es la SEGUNDA conclusion que tuve que retractar en esta investigacion
 causa fue la misma: comparar contra una referencia que yo mismo calculaba mal.
 La leccion es que cuando la medicion del RTL y mi referencia discrepan, el
 sospechoso numero uno tiene que ser mi referencia, no el RTL.
+
+## Sonda 6 — barrido con fondo de escala 255: PREDICCION CONFIRMADA
+
+    q_word  q=w/255   S max   nulo min
+       26   0,1020     118      906
+       51   0,2000     233      791
+       77   0,3020     353      671
+      102   0,4000     469      555
+      128   0,5020     590      434
+      153   0,6000     701      323
+      179   0,7020     826      198
+
+**`S` nunca desborda y escala lineal con q_word.** Extrapolado a q_word = 221:
+`826 * 221/179 = 1020`, justo debajo de 1024. El presupuesto de duties esta
+dimensionado EXACTAMENTE para fondo de escala 255. Y no hay fold-back en
+ningun punto del rango.
+
+Salvedad: la columna |v_o| de esta corrida la calcule del pico de iU, que
+arrastra modo comun, asi que no es comparable con los barridos anteriores
+basados en Clarke. No la uso como evidencia. La fila de 221 falto porque la
+simulacion corto a los 165 ms y ese tramo arrancaba a los 160.
+
+## CONCLUSION DE LA INVESTIGACION
+
+Dos defectos, los dos identificados, uno arreglado y validado:
+
+### 1. Inversion de 180 grados — RESUELTO
+
+`Modulador.vhd:884`. El patron de signos de `seq0` estaba complementado
+respecto de la regla `(-1)^(Kv+Ki)` de Casadei. Fix de una linea, validado
+midiendo: el desfasaje paso de +180,0 a -0,1 grados y la magnitud no se movio.
+
+### 2. Fondo de escala de `i_q_i`: 255, no 512 — IDENTIFICADO
+
+`cos_phi = 255` es el `cos(0)` de la LUT, asi que el modulador normaliza
+`i_q_i` contra 255. El spec, el `Q` de create_bd.tcl y el codigo de control lo
+tratan como 512. Con `q_max = 443` el modulador ve `443/255 = 1,74`, el doble
+del 0,866 pretendido: las duties salen al doble, `S` llega a 1024 a la mitad
+del q util, y mas alla `N = 1024 - S` hace underflow y aparece el fold-back.
+
+Confirmado por la sonda 6: con fondo de escala 255 el presupuesto cierra
+exactamente (S -> 1020 de 1024 en q_word = 221 = 0,866*255) y no hay
+fold-back.
+
+**Esto NO es un bug del modulador: es un desacuerdo de interfaz.** El
+modulador es coherente consigo mismo. Lo que esta mal es lo que le escriben.
+
+### Que hay que cambiar
+
+- `q_max`: 221 en cuentas de `i_q_i`, no 443.
+- `SW/python/ModeloControlPR.py`, funcion `normalizar()`: escalar por 255, no
+  por 512 (`Q_BITS = 9` deja de ser la forma correcta de pensarlo).
+- `HW/src/hdl/control/ControlLazo.vhd`: la conversion `q_24(23 downto 15)` es
+  un `*512 >>24`; pasa a ser `*255 >>24`.
+- `create_bd.tcl`: el `mk_const Q 9 180` significa 0,706, no 0,352.
+- Documentar el fondo de escala en el puerto `i_q_i` de `Modulador.vhd` y
+  `SVM_wrapper.vhd`, que es donde no esta dicho en ningun lado.
+
+### Que queda sin evaluar
+
+Si `be_i` tenia la misma inversion que `al_o`. El fix del signo aplica a los
+cuatro vectores activos, asi que probablemente se arreglo solo, pero hay que
+medirlo: cerrar un lazo sobre la entrada, o medir el factor de desplazamiento
+de la corriente de entrada contra `phi_i`.
