@@ -55,24 +55,19 @@ architecture sim of tb_ControlCorriente is
         std_logic_vector(to_signed(169613184, 32));        -- Kp = 10,1097
     constant B_KR : std_logic_vector(31 downto 0) :=
         std_logic_vector(to_signed(2718742, 32));          -- b = Kr*Ts
-    -- 1/1,0397. MEDIDO con un barrido de q en lazo abierto (26/09/2026),
-    -- infiriendo |v_o| de la CORRIENTE, que es lo que fisicamente integra la
-    -- tension aplicada. En la region lineal (q <= 0,4) la ganancia es 1,024 /
-    -- 1,057 / 1,038 / 1,040, media 1,0397.
-    --
-    -- Una medicion anterior, promediando o_U/o_V/o_W sobre cada Ts, daba
-    -- 1,976 de forma consistente: es un artefacto sistematico de ese metodo
-    -- (2x en toda la region lineal), no una propiedad del modulador. No usar.
+    -- 1/0,5178. Recalibrado tras corregir el fondo de escala de i_q_i
+    -- a 255: reexpresando el barrido Clarke en la escala correcta,
+    -- |v_o| = 0,5178 * q_pu (0,510 / 0,526 / 0,517 / 0,518 en los
+    -- cuatro puntos). El 1/1,0397 anterior venia de la escala 512.
     constant INV_VI : std_logic_vector(31 downto 0) :=
-        std_logic_vector(to_signed(16137369, 32));
-    -- q_max = 0,50, NO el sqrt(3)/2 = 0,866 teorico. El barrido de lazo
-    -- abierto muestra que este modulador satura en |v_o| ~ 0,50 y que mas
-    -- alla DOBLA HACIA ATRAS: a q = 0,80 entrega 0,41, menos que a q = 0,60.
-    -- Dejar entrar al lazo en esa zona le invierte el signo a la ganancia de
-    -- planta y el integrador se escapa. 0,50 lo mantiene en la region lineal.
-    -- Corriente maxima resultante: 0,50 * 1,0397 / 3,9563 = 0,131 pu.
+        std_logic_vector(to_signed(32396475, 32));
+    -- q_max = sqrt(3)/2 = 0,866, el limite teorico. El 0,50 que habia
+    -- aca era una guarda contra el fold-back, y el fold-back resulto
+    -- ser un desacuerdo de fondo de escala de i_q_i (255, no 512) que
+    -- ya se corrigio en ControlLazo. Con la escala bien, el
+    -- presupuesto de duties cierra en q = 0,866 y no hay fold-back.
     constant Q_MAX : std_logic_vector(31 downto 0) :=
-        std_logic_vector(to_signed(8388608, 32));
+        std_logic_vector(to_signed(14529495, 32));
 
     -- Desfasaje del filtro de entrada, en cuentas de 11 bits. Sin filtro
     -- modelado todavia, va en cero.

@@ -262,21 +262,26 @@ class RefGen(object):
 
 
 # --- normalizacion y saturacion ------------------------------------------
-Q_BITS = 9                                # ancho de i_q_i
+# FONDO DE ESCALA de i_q_i. Es 255, NO 512: el modulador normaliza q
+# dividiendo por cos_phi, y cos_phi es el cos(0) de la LUT, que vale 255.
+# Con 512 las duties salen al doble, la suma de los cuatro se pasa de los
+# 1024 clks del semiperiodo, el tiempo nulo hace underflow y aparece el
+# fold-back. Medido y documentado en Control/INVESTIGACION_MODULADOR.md.
+Q_FONDO = 255
+Q_BITS = 9                                # ancho del puerto i_q_i
 
 
 def normalizar(mag, inv_vi, q_max):
-    """De |v*| en Q8.24 a la palabra q de 9 bits que toma el modulador.
+    """De |v*| en Q8.24 a la palabra que toma el modulador en i_q_i.
 
     q_max viene en Q1.24 y mag*inv_vi queda en Q8.24: los dos tienen 24 bits
-    fraccionarios, asi que se comparan directo. La palabra de salida es q
-    escalado por 512, que es la codificacion de i_q_i.
+    fraccionarios, asi que se comparan directo.
     """
     q_pu = mul_trunc(mag, inv_vi, 24, 24, 24)     # Q8.24
     sat = q_pu > q_max
     if sat:
         q_pu = q_max
-    palabra = (q_pu * (1 << Q_BITS)) >> 24
+    palabra = (q_pu * Q_FONDO) >> 24
     return max(0, min((1 << Q_BITS) - 1, palabra)), sat
 
 
@@ -321,7 +326,7 @@ class Lazo(object):
             self.sat_z1 = sat
 
             # El modulador reconstruye v_o = q*V_i*e^(j*al_o).
-            q_pu = q / float(1 << Q_BITS)
+            q_pu = q / float(Q_FONDO)
             theta = 2.0 * math.pi * ang / 2048.0
             self.planta_a.paso(q_pu * self.v_i * math.cos(theta))
             self.planta_b.paso(q_pu * self.v_i * math.sin(theta))

@@ -143,6 +143,7 @@ begin
     fsm : process (i_clk)
         variable prod : signed(63 downto 0);
         variable q_24 : signed(31 downto 0);
+        variable q_m  : signed(40 downto 0);
     begin
         if rising_edge(i_clk) then
             trg_z1       <= i_trg;
@@ -224,25 +225,23 @@ begin
                         if q_24 < 0 then
                             q_reg <= (others => '0');
                         else
-                            -- q (Q8.24) -> palabra de 9 bits: *512 >>24 = >>15
-                            q_reg <= std_logic_vector(q_24(23 downto 15));
+                            -- q (Q8.24) -> palabra de i_q_i. FONDO DE ESCALA 255,
+                            -- no 512: el modulador normaliza q contra cos_phi, y
+                            -- cos_phi es el cos(0) de la LUT, que vale 255. Con
+                            -- 512 las duties salen al doble, la suma se pasa de
+                            -- 1024 y el tiempo nulo hace underflow (medido).
+                            -- 255 = 256-1, asi que el producto es un shift y una
+                            -- resta, sin multiplicador.
+                            q_m := shift_left(resize(q_24, 41), 8) - resize(q_24, 41);
+                            q_reg <= std_logic_vector(q_m(32 downto 24));
                         end if;
 
-                        -- +1024 = +180 grados. MEDIDO en lazo abierto
-                        -- (2026-09-26): el modulador sintetiza el vector de
-                        -- tension de salida en al_o + 180, no en al_o. Con q
-                        -- fijo en 200/512 y al_o rotando a 50 Hz, el angulo
-                        -- del vector de tension promediado sobre cada Ts dio
-                        -- al_o + 180,0 grados exacto en todo el periodo, y la
-                        -- corriente atraso a ESA tension 75 grados, contra los
-                        -- 72,3 de atan(w*L/R): la carga y la Clarke estan bien.
-                        --
-                        -- Sin esta correccion la realimentacion es POSITIVA y
-                        -- el lazo diverge. Queda por decidir si corresponde
-                        -- arreglar el signo en Modulador.vhd en vez de
-                        -- compensarlo aca; se compensa aca porque el modulador
-                        -- ya esta verificado y en uso en el block design.
-                        al_o_reg <= std_logic_vector(cordic_ang + 1024);
+                        -- El +1024 que habia aca salio: la inversion de 180
+                        -- grados se arreglo en la FUENTE (Modulador.vhd:884,
+                        -- el patron de signos de seq0 estaba complementado
+                        -- respecto de la regla (-1)^(Kv+Ki) de Casadei).
+                        -- Ver Control/INVESTIGACION_MODULADOR.md.
+                        al_o_reg <= std_logic_vector(cordic_ang);
                         listo    <= '1';
                         estado   <= ESPERA;
 

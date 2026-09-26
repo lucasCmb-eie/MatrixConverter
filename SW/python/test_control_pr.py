@@ -300,10 +300,10 @@ class TestCordic(unittest.TestCase):
         q_max = Q1_24.de_float(0.866)
         q, sat = m.normalizar(Q8_24.de_float(0.5), inv_vi, q_max)
         self.assertFalse(sat)
-        self.assertAlmostEqual(q / 512.0, 0.5, places=2)
+        self.assertAlmostEqual(q / m.Q_FONDO, 0.5, places=2)
         q, sat = m.normalizar(Q8_24.de_float(1.5), inv_vi, q_max)
         self.assertTrue(sat)
-        self.assertAlmostEqual(q / 512.0, 0.866, places=2)
+        self.assertAlmostEqual(q / m.Q_FONDO, 0.866, places=2)
 
     def test_normalizar_entrada_cero_da_q_cero(self):
         q, sat = m.normalizar(0, Q8_24.de_float(1.0), Q1_24.de_float(0.866))
