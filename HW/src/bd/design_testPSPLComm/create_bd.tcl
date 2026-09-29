@@ -134,15 +134,21 @@ mk_slice sl_rst 0
 mk_slice sl_en  1
 mk_slice sl_arm 2
 
+# Puerto indexado de set points, montado sobre los bits libres de ctrl/ch1.
+# No hace falta un tercer AXI GPIO: ch1 usaba 3 de 32 bits.
+mk_slice sl_wrstb 3
+# wr_idx son cuatro bits, asi que no sirve mk_slice, que saca uno solo.
+create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 sl_wridx
+set_property -dict [list CONFIG.DIN_WIDTH {32} CONFIG.DIN_FROM {7} \
+    CONFIG.DIN_TO {4} CONFIG.DOUT_WIDTH {4}] [get_bd_cells sl_wridx]
+connect_bd_net [get_bd_pins axi_gpio_ctrl/gpio_io_o] [get_bd_pins sl_wridx/Din]
+
 # --- constantes del datapath ----------------------------------------------
 proc mk_const {nombre ancho valor} {
     create_bd_cell -type inline_hdl -vlnv xilinx.com:inline_hdl:ilconstant:1.0 $nombre
     set_property -dict [list CONFIG.CONST_WIDTH $ancho CONFIG.CONST_VAL $valor] [get_bd_cells $nombre]
 }
-# q = 180/256 = 0,703125, por debajo del limite teorico 0,866
-mk_const Q       9  180
-# sin desfase entre corriente de salida y tension de entrada
-mk_const Phi_I   11 0
+# Q y Phi_I salieron: i_q_i viene del lazo y i_phi_i de CtrlRegs.
 # Carga RL discretizada por Tustin a T = 100 ns (RL_fase no tiene enable:
 # avanza en cada flanco del reloj, no una vez por Ts):
 #   R = 1,2 ohm, L = 12 mH, tau = L/R = 10 ms
@@ -175,6 +181,48 @@ create_bd_cell -type module -reference SVM_wrapper    SVM_wrapper_0
 create_bd_cell -type module -reference RL_bd          RL_wrapper_0
 create_bd_cell -type module -reference CaptureBank    CaptureBank_0
 
+# --- banco de set points y lazo de corriente ------------------------------
+# ControlLazo entra como module reference DIRECTO: esta escrito en VHDL-93, y
+# que sus hijos sean VHDL-2008 no importa -- Vivado solo rechaza un archivo
+# 2008 como TOP de un module reference. Mismo patron que SVM_wrapper, que ya
+# funciona aca instanciando matrixConmut.
+create_bd_cell -type module -reference CtrlRegs    CtrlRegs_0
+create_bd_cell -type module -reference ControlLazo ControlLazo_0
+
+connect_bd_net $clk_10m [get_bd_pins CtrlRegs_0/i_clk] [get_bd_pins ControlLazo_0/i_clk]
+connect_bd_net [get_bd_pins sl_rst/Dout] [get_bd_pins CtrlRegs_0/i_rst] \
+    [get_bd_pins ControlLazo_0/i_rst]
+connect_bd_net [get_bd_pins sl_en/Dout]  [get_bd_pins ControlLazo_0/i_en]
+
+connect_bd_net [get_bd_pins sl_wrstb/Dout] [get_bd_pins CtrlRegs_0/i_wr_stb]
+connect_bd_net [get_bd_pins sl_wridx/Dout] [get_bd_pins CtrlRegs_0/i_wr_idx]
+connect_bd_net [get_bd_pins axi_gpio_ctrl/gpio2_io_o] [get_bd_pins CtrlRegs_0/i_wr_data]
+
+# El mismo pulso del modulador es la batuta de todo: dispara el Clark, la
+# captura, el commit de los set points y el lazo.
+connect_bd_net [get_bd_pins SVM_wrapper_0/o_trg_calculo] \
+    [get_bd_pins CtrlRegs_0/i_trg] [get_bd_pins ControlLazo_0/i_trg]
+
+# set points -> lazo
+connect_bd_net [get_bd_pins CtrlRegs_0/o_paso_ref] [get_bd_pins ControlLazo_0/i_paso_ref]
+connect_bd_net [get_bd_pins CtrlRegs_0/o_amp_ref]  [get_bd_pins ControlLazo_0/i_amp_ref]
+connect_bd_net [get_bd_pins CtrlRegs_0/o_k]        [get_bd_pins ControlLazo_0/i_k]
+connect_bd_net [get_bd_pins CtrlRegs_0/o_kp]       [get_bd_pins ControlLazo_0/i_kp]
+connect_bd_net [get_bd_pins CtrlRegs_0/o_b]        [get_bd_pins ControlLazo_0/i_b]
+connect_bd_net [get_bd_pins CtrlRegs_0/o_inv_vi]   [get_bd_pins ControlLazo_0/i_inv_vi]
+connect_bd_net [get_bd_pins CtrlRegs_0/o_q_max]    [get_bd_pins ControlLazo_0/i_q_max]
+connect_bd_net [get_bd_pins CtrlRegs_0/o_freeze]   [get_bd_pins ControlLazo_0/i_freeze]
+
+# corrientes medidas -> lazo
+connect_bd_net [get_bd_pins RL_wrapper_0/o_Iu] [get_bd_pins ControlLazo_0/i_iU]
+connect_bd_net [get_bd_pins RL_wrapper_0/o_Iv] [get_bd_pins ControlLazo_0/i_iV]
+connect_bd_net [get_bd_pins RL_wrapper_0/o_Iw] [get_bd_pins ControlLazo_0/i_iW]
+
+# lazo -> modulador
+connect_bd_net [get_bd_pins ControlLazo_0/o_q]    [get_bd_pins SVM_wrapper_0/i_q_i]
+connect_bd_net [get_bd_pins ControlLazo_0/o_al_o] [get_bd_pins SVM_wrapper_0/i_al_o]
+connect_bd_net [get_bd_pins CtrlRegs_0/o_phi_i]   [get_bd_pins SVM_wrapper_0/i_phi_i]
+
 # --- reloj ----------------------------------------------------------------
 connect_bd_net $clk_10m [get_bd_pins AC_Source_0/i_clk] [get_bd_pins TClark_wrapper_0/i_clk] [get_bd_pins CORDIC_atan2_0/clk] [get_bd_pins SVM_wrapper_0/i_clk] [get_bd_pins RL_wrapper_0/i_clk] [get_bd_pins CaptureBank_0/i_clk]
 
@@ -191,7 +239,7 @@ connect_bd_net [get_bd_pins sl_arm/Dout] [get_bd_pins CaptureBank_0/i_arm]
 
 # --- fuente trifasica: la frecuencia la fija el PS ------------------------
 #   i_frec = round(f_o * 2**32 / 10 MHz) = round(f_o * 429,4967)
-connect_bd_net [get_bd_pins axi_gpio_ctrl/gpio2_io_o] [get_bd_pins AC_Source_0/i_frec]
+connect_bd_net [get_bd_pins CtrlRegs_0/o_frec_in] [get_bd_pins AC_Source_0/i_frec]
 
 # --- Clark de la tension de entrada, disparado por el modulador -----------
 connect_bd_net [get_bd_pins AC_Source_0/o_U] [get_bd_pins TClark_wrapper_0/i_U] [get_bd_pins SVM_wrapper_0/i_U] [get_bd_pins CaptureBank_0/i_d00]
@@ -209,9 +257,16 @@ connect_bd_net [get_bd_pins TClark_wrapper_0/o_valido] [get_bd_pins CORDIC_atan2
 # Consecuencia deliberada: con al_o = be_i la tension de salida queda
 # enganchada en frecuencia y fase a la de entrada. El banco NO hace
 # conversion de frecuencia; eso es el subproyecto C.
-connect_bd_net [get_bd_pins CORDIC_atan2_0/angle_out] [get_bd_pins SVM_wrapper_0/i_al_o] [get_bd_pins SVM_wrapper_0/i_be_i]
-connect_bd_net [get_bd_pins Q/dout]     [get_bd_pins SVM_wrapper_0/i_q_i]
-connect_bd_net [get_bd_pins Phi_I/dout] [get_bd_pins SVM_wrapper_0/i_phi_i]
+# al_o viene del LAZO, be_i del angulo de red. Esto es lo que rompe el
+# enganche que ataba la frecuencia de salida a la de entrada: el banco pasa a
+# hacer conversion de frecuencia.
+#
+# be_i deberia ser theta_v - phi_f, con phi_f el desfasaje del filtro de
+# entrada MAS el retardo de transporte del CORDIC. Medido en simulacion, ese
+# retardo solo ya vale -17,4 grados a 50 Hz (Control/INVESTIGACION_MODULADOR.md,
+# sonda 7). Con phi_f = 0 queda ese error de desplazamiento, que es lo que hay
+# que calibrar en la placa: por eso be_i va directo por ahora.
+connect_bd_net [get_bd_pins CORDIC_atan2_0/angle_out] [get_bd_pins SVM_wrapper_0/i_be_i]
 
 # --- carga RL sobre la tension conmutada ----------------------------------
 connect_bd_net [get_bd_pins Coef_a0/dout] [get_bd_pins RL_wrapper_0/i_c_a0]
@@ -227,7 +282,36 @@ connect_bd_net [get_bd_pins SVM_wrapper_0/o_W] [get_bd_pins RL_wrapper_0/i_W]
 connect_bd_net [get_bd_pins RL_wrapper_0/o_Iu] [get_bd_pins CaptureBank_0/i_d06]
 connect_bd_net [get_bd_pins RL_wrapper_0/o_Iv] [get_bd_pins CaptureBank_0/i_d07]
 connect_bd_net [get_bd_pins RL_wrapper_0/o_Iw] [get_bd_pins CaptureBank_0/i_d08]
-connect_bd_net [get_bd_pins Cero32/dout] [get_bd_pins CaptureBank_0/i_d03] [get_bd_pins CaptureBank_0/i_d04] [get_bd_pins CaptureBank_0/i_d05] [get_bd_pins CaptureBank_0/i_d09] [get_bd_pins CaptureBank_0/i_d10] [get_bd_pins CaptureBank_0/i_d11] [get_bd_pins CaptureBank_0/i_d12]
+connect_bd_net [get_bd_pins ControlLazo_0/o_i_alfa]   [get_bd_pins CaptureBank_0/i_d09]
+connect_bd_net [get_bd_pins ControlLazo_0/o_i_beta]   [get_bd_pins CaptureBank_0/i_d10]
+connect_bd_net [get_bd_pins ControlLazo_0/o_ref_alfa] [get_bd_pins CaptureBank_0/i_d14]
+connect_bd_net [get_bd_pins ControlLazo_0/o_ref_beta] [get_bd_pins CaptureBank_0/i_d15]
+connect_bd_net [get_bd_pins ControlLazo_0/o_v_alfa]   [get_bd_pins CaptureBank_0/i_d16]
+connect_bd_net [get_bd_pins ControlLazo_0/o_v_beta]   [get_bd_pins CaptureBank_0/i_d17]
+
+# Ranura 18: q (9 b) + al_o (11 b) + sat (1 b) + relleno, en una palabra.
+create_bd_cell -type ip -vlnv xilinx.com:ip:xlconcat:2.1 cat_q
+set_property -dict [list CONFIG.NUM_PORTS {4}] [get_bd_cells cat_q]
+mk_const Relleno11 11 0
+connect_bd_net [get_bd_pins ControlLazo_0/o_q]    [get_bd_pins cat_q/In0]
+connect_bd_net [get_bd_pins ControlLazo_0/o_al_o] [get_bd_pins cat_q/In1]
+connect_bd_net [get_bd_pins ControlLazo_0/o_sat]  [get_bd_pins cat_q/In2]
+connect_bd_net [get_bd_pins Relleno11/dout]       [get_bd_pins cat_q/In3]
+connect_bd_net [get_bd_pins cat_q/dout] [get_bd_pins CaptureBank_0/i_d18]
+
+# Ranura 19: el clamp sticky de CtrlRegs, para que el PS sepa si le rechazaron
+# un set point.
+create_bd_cell -type ip -vlnv xilinx.com:ip:xlconcat:2.1 cat_clamp
+set_property -dict [list CONFIG.NUM_PORTS {2}] [get_bd_cells cat_clamp]
+mk_const Relleno16 16 0
+connect_bd_net [get_bd_pins CtrlRegs_0/o_clamp] [get_bd_pins cat_clamp/In0]
+connect_bd_net [get_bd_pins Relleno16/dout]     [get_bd_pins cat_clamp/In1]
+connect_bd_net [get_bd_pins cat_clamp/dout] [get_bd_pins CaptureBank_0/i_d19]
+
+# Las que siguen sin usar van a cero A PROPOSITO, para mantener los indices.
+connect_bd_net [get_bd_pins Cero32/dout] [get_bd_pins CaptureBank_0/i_d03] \
+    [get_bd_pins CaptureBank_0/i_d04] [get_bd_pins CaptureBank_0/i_d05] \
+    [get_bd_pins CaptureBank_0/i_d11] [get_bd_pins CaptureBank_0/i_d12]
 
 connect_bd_net [get_bd_pins axi_gpio_data/gpio2_io_o] [get_bd_pins CaptureBank_0/i_sel]
 connect_bd_net [get_bd_pins CaptureBank_0/o_data]     [get_bd_pins axi_gpio_data/gpio_io_i]
@@ -246,7 +330,7 @@ connect_bd_net [get_bd_pins CaptureBank_0/o_listo] [get_bd_pins processing_syste
 # Los pines escalares que son miembros de una interfaz (s_axi_awaddr, etc.)
 # se excluyen del barrido: su conectividad vive en el interface net, no en un
 # net comun, asi que se chequean aparte por la interfaz completa.
-set celdas {AC_Source_0 TClark_wrapper_0 CORDIC_atan2_0 SVM_wrapper_0 RL_wrapper_0 CaptureBank_0 axi_gpio_ctrl axi_gpio_data sl_rst sl_en sl_arm Q Phi_I Coef_a0 Coef_a1 Coef_b1 Cero32}
+set celdas {AC_Source_0 TClark_wrapper_0 CORDIC_atan2_0 SVM_wrapper_0 RL_wrapper_0 CaptureBank_0 CtrlRegs_0 ControlLazo_0 axi_gpio_ctrl axi_gpio_data sl_rst sl_en sl_arm sl_wrstb sl_wridx cat_q cat_clamp Relleno11 Relleno16 Coef_a0 Coef_a1 Coef_b1 Cero32}
 set entradas_sueltas {}
 set salidas_sueltas {}
 set intf_sueltas {}
@@ -293,6 +377,32 @@ if {[llength $entradas_sueltas]} {
     error "Hay entradas sin conectar en el datapath"
 }
 puts "CHEQUEO|no hay entradas sueltas"
+
+# --- chequeos propios del hito 5 -----------------------------------------
+# i_q_i tiene que venir del LAZO, no de una constante.
+set drv [get_bd_pins -quiet -of [get_bd_nets -of [get_bd_pins SVM_wrapper_0/i_q_i]] \
+         -filter {DIR == O}]
+if {![string match "*ControlLazo_0*" $drv]} {
+    error "i_q_i no viene del lazo, viene de: $drv"
+}
+puts "CHEQUEO|i_q_i viene del lazo"
+
+# al_o y be_i tienen que venir de fuentes DISTINTAS: si comparten driver,
+# volvio el enganche que ata la frecuencia de salida a la de entrada.
+set d_al [get_bd_pins -quiet -of [get_bd_nets -of [get_bd_pins SVM_wrapper_0/i_al_o]] -filter {DIR == O}]
+set d_be [get_bd_pins -quiet -of [get_bd_nets -of [get_bd_pins SVM_wrapper_0/i_be_i]] -filter {DIR == O}]
+if {$d_al eq $d_be} {
+    error "al_o y be_i comparten driver: volvio el enganche de frecuencia"
+}
+puts "CHEQUEO|al_o y be_i tienen drivers distintos"
+
+# Las 19 ranuras cableadas de CaptureBank (la 13 es el estado, no tiene pin).
+foreach n {00 01 02 03 04 05 06 07 08 09 10 11 12 14 15 16 17 18 19} {
+    if {[llength [get_bd_nets -quiet -of [get_bd_pins CaptureBank_0/i_d$n]]] == 0} {
+        error "CaptureBank/i_d$n quedo sin cablear"
+    }
+}
+puts "CHEQUEO|las 19 ranuras de CaptureBank estan cableadas"
 
 # --- 2) el reset del datapath NO viene del proc_sys_reset ----------------
 set net_rst [get_property NAME [get_bd_nets -of [get_bd_pins AC_Source_0/i_rst]]]

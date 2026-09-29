@@ -49,6 +49,7 @@ set files [list \
   [file normalize "${origin_dir}/HW/src/hdl/control/PR_2int.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/control/RefGen.vhd"] \
   [file normalize "${origin_dir}/HW/src/hdl/control/ControlLazo.vhd"] \
+  [file normalize "${origin_dir}/HW/src/hdl/control/CtrlRegs.vhd"] \
  ]
  add_files -norecurse -fileset $obj $files
 
@@ -107,6 +108,7 @@ set files [list \
  [file normalize "${origin_dir}/HW/src/tb/tb_CORDIC_vec.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_ControlCorriente.vhd"] \
  [file normalize "${origin_dir}/HW/src/tb/tb_criterios.vhd"] \
+ [file normalize "${origin_dir}/HW/src/tb/tb_CtrlRegs.vhd"] \
 ]
 add_files -norecurse -fileset $obj $files
 
