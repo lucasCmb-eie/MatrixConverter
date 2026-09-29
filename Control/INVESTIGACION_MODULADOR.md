@@ -401,3 +401,37 @@ Si `be_i` tenia la misma inversion que `al_o`. El fix del signo aplica a los
 cuatro vectores activos, asi que probablemente se arreglo solo, pero hay que
 medirlo: cerrar un lazo sobre la entrada, o medir el factor de desplazamiento
 de la corriente de entrada contra `phi_i`.
+
+## Sonda 7 — be_i NO arrastraba la inversion (29/09/2026)
+
+Pregunta abierta desde el arreglo del signo: si `be_i` tenia la misma
+inversion de 180 grados que `al_o`. El lazo de salida no lo detectaria nunca
+porque no cierra sobre la entrada.
+
+Medicion: con `phi_i = 0` el factor de desplazamiento de entrada tiene que ser
+unitario, o sea la corriente de entrada en fase con la tension de entrada.
+`matrixConmut` no modela la corriente de entrada, asi que se reconstruye desde
+la palabra de conmutacion, `i_in = M^T * i_out`, y se promedia sobre el Ts.
+
+Lazo abierto, q = 153/255, salida a 30 Hz (distinta de los 50 de entrada para
+que los promedios no se confundan), 200 ms:
+
+    componente de i_in EN FASE con v_in : +0,020476
+    componente en CUADRATURA            : -0,006406
+    angulo de i_in respecto de v_in     : -17,4 grados
+    |i_in| medio                        :  0,021454
+
+**RESPUESTA: be_i NO estaba invertido.** Con la inversion daria ~180 grados;
+da -17,4, con la componente en fase dominante y positiva.
+
+El residuo de -17,4 grados es consistente con RETARDO DE TRANSPORTE: theta_v
+pasa por Clarke + CORDIC antes de que el modulador lo use, y a 50 Hz cada Ts
+son 3,686 grados, asi que 4 o 5 Ts de latencia total dan los 17. Es
+exactamente lo que el termino `phi_f` del diseno existe para compensar
+(`be_i = theta_v - phi_f`), y en este TB esta en cero.
+
+O sea: no es un defecto, es el parametro que queda por calibrar. Cuando haya
+filtro de entrada modelado, `phi_f` tiene que absorber el desfasaje del filtro
+MAS este retardo de transporte.
+
+Con esto se cierra la ultima pregunta abierta de la investigacion.
