@@ -21,6 +21,25 @@
 # Ver docs/superpowers/specs/2026-08-24-bd-test-comunicplps-design.md
 # ============================================================================
 
+# ---------------------------------------------------------------------------
+# CONFIGURACION: planta RL simulada
+#
+#   0 = sin planta (default). Se omite RL_wrapper_0 y las corrientes medidas
+#       entran en cero. El lazo queda instanciado pero sin realimentacion:
+#       sirve para validar el modulador (lazo abierto) y el puente PS<->PL.
+#   1 = con planta. Banco de lazo cerrado completo.
+#
+# Por que el default es 0: RL_fase cuesta 12 DSP48E1 por fase (tres productos
+# Q8.24xQ8.24) y son 3 fases = 36 DSP, el 40% de los 66 que tiene el
+# xc7z007s de la Blackboard. Con planta el diseno pide 89 DSP y la
+# implementacion aborta en DRC UTLZ-1 (134,85%). Sin planta quedan 53.
+#
+# Esto es una restriccion del chip actual, no del diseno: el XC7Z020 de la
+# ALINX AX7Z020B (la placa a la que se piensa migrar, por HDMI) tiene 220
+# DSP48E1, y ahi el banco completo entra al 40% sin tocar una linea de RTL.
+# Cuando se migre, poner esto en 1 y cambiar el -part en build.tcl.
+set con_planta 0
+
 set bd_name  "design_testPSPLComm"
 set bd_dir   [file normalize [file dirname [info script]]/..]
 set repo_dir [file normalize [file dirname [info script]]/../../../..]
@@ -167,9 +186,11 @@ proc mk_const {nombre ancho valor} {
 #
 # OJO: el encabezado de RL_fase.vhd dice "- b1*I[n-1]" pero la implementacion
 # (linea 94) suma, asi que b1 va POSITIVO.
-mk_const Coef_a0 32 70
-mk_const Coef_a1 32 70
-mk_const Coef_b1 32 16777048
+if {$con_planta} {
+    mk_const Coef_a0 32 70
+    mk_const Coef_a1 32 70
+    mk_const Coef_b1 32 16777048
+}
 # relleno de las ranuras de CaptureBank que no se usan en este banco
 mk_const Cero32  32 0
 
@@ -178,7 +199,9 @@ create_bd_cell -type module -reference AC_Source      AC_Source_0
 create_bd_cell -type module -reference TClark_wrapper TClark_wrapper_0
 create_bd_cell -type module -reference CORDIC_atan2   CORDIC_atan2_0
 create_bd_cell -type module -reference SVM_wrapper    SVM_wrapper_0
-create_bd_cell -type module -reference RL_bd          RL_wrapper_0
+if {$con_planta} {
+    create_bd_cell -type module -reference RL_bd      RL_wrapper_0
+}
 create_bd_cell -type module -reference CaptureBank    CaptureBank_0
 
 # --- banco de set points y lazo de corriente ------------------------------
@@ -214,9 +237,21 @@ connect_bd_net [get_bd_pins CtrlRegs_0/o_q_max]    [get_bd_pins ControlLazo_0/i_
 connect_bd_net [get_bd_pins CtrlRegs_0/o_freeze]   [get_bd_pins ControlLazo_0/i_freeze]
 
 # corrientes medidas -> lazo
-connect_bd_net [get_bd_pins RL_wrapper_0/o_Iu] [get_bd_pins ControlLazo_0/i_iU]
-connect_bd_net [get_bd_pins RL_wrapper_0/o_Iv] [get_bd_pins ControlLazo_0/i_iV]
-connect_bd_net [get_bd_pins RL_wrapper_0/o_Iw] [get_bd_pins ControlLazo_0/i_iW]
+# Sin planta las tres entran en cero: el lazo no realimenta, pero sus entradas
+# quedan con driver (que es lo que exige la auditoria de mas abajo) y los
+# integradores del PR se dejan quietos con i_freeze, que arranca en 1.
+if {$con_planta} {
+    set src_iu [get_bd_pins RL_wrapper_0/o_Iu]
+    set src_iv [get_bd_pins RL_wrapper_0/o_Iv]
+    set src_iw [get_bd_pins RL_wrapper_0/o_Iw]
+} else {
+    set src_iu [get_bd_pins Cero32/dout]
+    set src_iv [get_bd_pins Cero32/dout]
+    set src_iw [get_bd_pins Cero32/dout]
+}
+connect_bd_net $src_iu [get_bd_pins ControlLazo_0/i_iU]
+connect_bd_net $src_iv [get_bd_pins ControlLazo_0/i_iV]
+connect_bd_net $src_iw [get_bd_pins ControlLazo_0/i_iW]
 
 # lazo -> modulador
 connect_bd_net [get_bd_pins ControlLazo_0/o_q]    [get_bd_pins SVM_wrapper_0/i_q_i]
@@ -224,14 +259,21 @@ connect_bd_net [get_bd_pins ControlLazo_0/o_al_o] [get_bd_pins SVM_wrapper_0/i_a
 connect_bd_net [get_bd_pins CtrlRegs_0/o_phi_i]   [get_bd_pins SVM_wrapper_0/i_phi_i]
 
 # --- reloj ----------------------------------------------------------------
-connect_bd_net $clk_10m [get_bd_pins AC_Source_0/i_clk] [get_bd_pins TClark_wrapper_0/i_clk] [get_bd_pins CORDIC_atan2_0/clk] [get_bd_pins SVM_wrapper_0/i_clk] [get_bd_pins RL_wrapper_0/i_clk] [get_bd_pins CaptureBank_0/i_clk]
+if {$con_planta} {
+    set clk_planta [list [get_bd_pins RL_wrapper_0/i_clk]]
+    set rst_planta [list [get_bd_pins RL_wrapper_0/i_rst]]
+} else {
+    set clk_planta {}
+    set rst_planta {}
+}
+connect_bd_net $clk_10m [get_bd_pins AC_Source_0/i_clk] [get_bd_pins TClark_wrapper_0/i_clk] [get_bd_pins CORDIC_atan2_0/clk] [get_bd_pins SVM_wrapper_0/i_clk] {*}$clk_planta [get_bd_pins CaptureBank_0/i_clk]
 
 # --- reset del datapath: lo maneja el PS por el bit 0 ---------------------
 # NO se usa peripheral_aresetn del proc_sys_reset: es activo BAJO y todos
 # estos resets son activos ALTOS (sine_generator.vhd:57, CORDIC_atan2.vhd:70,
 # TransformadaClark.vhd:66, RL_fase.vhd:113). Conectarlo dejaria el datapath
 # en reset permanente.
-connect_bd_net [get_bd_pins sl_rst/Dout] [get_bd_pins AC_Source_0/i_rst] [get_bd_pins TClark_wrapper_0/i_rst] [get_bd_pins CORDIC_atan2_0/rst] [get_bd_pins RL_wrapper_0/i_rst] [get_bd_pins CaptureBank_0/i_rst]
+connect_bd_net [get_bd_pins sl_rst/Dout] [get_bd_pins AC_Source_0/i_rst] [get_bd_pins TClark_wrapper_0/i_rst] [get_bd_pins CORDIC_atan2_0/rst] {*}$rst_planta [get_bd_pins CaptureBank_0/i_rst]
 
 # --- resto del control ----------------------------------------------------
 connect_bd_net [get_bd_pins sl_en/Dout]  [get_bd_pins SVM_wrapper_0/i_enable]
@@ -269,19 +311,26 @@ connect_bd_net [get_bd_pins TClark_wrapper_0/o_valido] [get_bd_pins CORDIC_atan2
 connect_bd_net [get_bd_pins CORDIC_atan2_0/angle_out] [get_bd_pins SVM_wrapper_0/i_be_i]
 
 # --- carga RL sobre la tension conmutada ----------------------------------
-connect_bd_net [get_bd_pins Coef_a0/dout] [get_bd_pins RL_wrapper_0/i_c_a0]
-connect_bd_net [get_bd_pins Coef_a1/dout] [get_bd_pins RL_wrapper_0/i_c_a1]
-connect_bd_net [get_bd_pins Coef_b1/dout] [get_bd_pins RL_wrapper_0/i_c_b1]
-connect_bd_net [get_bd_pins SVM_wrapper_0/o_U] [get_bd_pins RL_wrapper_0/i_U]
-connect_bd_net [get_bd_pins SVM_wrapper_0/o_V] [get_bd_pins RL_wrapper_0/i_V]
-connect_bd_net [get_bd_pins SVM_wrapper_0/o_W] [get_bd_pins RL_wrapper_0/i_W]
+# Sin planta, o_U/o_V/o_W del SVM quedan sin carga. Son SALIDAS, asi que la
+# auditoria no las marca; se las sigue viendo por CaptureBank si algun dia se
+# cablean a una ranura.
+if {$con_planta} {
+    connect_bd_net [get_bd_pins Coef_a0/dout] [get_bd_pins RL_wrapper_0/i_c_a0]
+    connect_bd_net [get_bd_pins Coef_a1/dout] [get_bd_pins RL_wrapper_0/i_c_a1]
+    connect_bd_net [get_bd_pins Coef_b1/dout] [get_bd_pins RL_wrapper_0/i_c_b1]
+    connect_bd_net [get_bd_pins SVM_wrapper_0/o_U] [get_bd_pins RL_wrapper_0/i_U]
+    connect_bd_net [get_bd_pins SVM_wrapper_0/o_V] [get_bd_pins RL_wrapper_0/i_V]
+    connect_bd_net [get_bd_pins SVM_wrapper_0/o_W] [get_bd_pins RL_wrapper_0/i_W]
+}
 
 # --- banco de captura -----------------------------------------------------
 # Indices en uso:  0,1,2 = Vi (v_U,v_V,v_W)      6,7,8 = Io (i_U,i_V,i_W)
+# Con con_planta=0 las ranuras 6,7,8 leen cero: no hay planta que las genere.
+# Se dejan cableadas igual para que el software del PS no cambie de indices.
 # El resto queda en cero, reservado: cablearlos despues no renumera nada.
-connect_bd_net [get_bd_pins RL_wrapper_0/o_Iu] [get_bd_pins CaptureBank_0/i_d06]
-connect_bd_net [get_bd_pins RL_wrapper_0/o_Iv] [get_bd_pins CaptureBank_0/i_d07]
-connect_bd_net [get_bd_pins RL_wrapper_0/o_Iw] [get_bd_pins CaptureBank_0/i_d08]
+connect_bd_net $src_iu [get_bd_pins CaptureBank_0/i_d06]
+connect_bd_net $src_iv [get_bd_pins CaptureBank_0/i_d07]
+connect_bd_net $src_iw [get_bd_pins CaptureBank_0/i_d08]
 connect_bd_net [get_bd_pins ControlLazo_0/o_i_alfa]   [get_bd_pins CaptureBank_0/i_d09]
 connect_bd_net [get_bd_pins ControlLazo_0/o_i_beta]   [get_bd_pins CaptureBank_0/i_d10]
 connect_bd_net [get_bd_pins ControlLazo_0/o_ref_alfa] [get_bd_pins CaptureBank_0/i_d14]
@@ -330,7 +379,10 @@ connect_bd_net [get_bd_pins CaptureBank_0/o_listo] [get_bd_pins processing_syste
 # Los pines escalares que son miembros de una interfaz (s_axi_awaddr, etc.)
 # se excluyen del barrido: su conectividad vive en el interface net, no en un
 # net comun, asi que se chequean aparte por la interfaz completa.
-set celdas {AC_Source_0 TClark_wrapper_0 CORDIC_atan2_0 SVM_wrapper_0 RL_wrapper_0 CaptureBank_0 CtrlRegs_0 ControlLazo_0 axi_gpio_ctrl axi_gpio_data sl_rst sl_en sl_arm sl_wrstb sl_wridx cat_q cat_clamp Relleno11 Relleno16 Coef_a0 Coef_a1 Coef_b1 Cero32}
+set celdas {AC_Source_0 TClark_wrapper_0 CORDIC_atan2_0 SVM_wrapper_0 CaptureBank_0 CtrlRegs_0 ControlLazo_0 axi_gpio_ctrl axi_gpio_data sl_rst sl_en sl_arm sl_wrstb sl_wridx cat_q cat_clamp Relleno11 Relleno16 Cero32}
+if {$con_planta} {
+    lappend celdas RL_wrapper_0 Coef_a0 Coef_a1 Coef_b1
+}
 set entradas_sueltas {}
 set salidas_sueltas {}
 set intf_sueltas {}
@@ -366,7 +418,12 @@ foreach c $celdas {
         }
     }
 }
-puts "CHEQUEO|salidas sin uso (esperado CORDIC/done y SVM/o_direcciones_Matriz): $salidas_sueltas"
+if {$con_planta} {
+    set esperadas "CORDIC/done y SVM/o_direcciones_Matriz"
+} else {
+    set esperadas "CORDIC/done, SVM/o_direcciones_Matriz y SVM/o_U,o_V,o_W (sin planta)"
+}
+puts "CHEQUEO|salidas sin uso (esperado $esperadas): $salidas_sueltas"
 if {[llength $intf_sueltas]} {
     puts "CHEQUEO|INTERFACES SUELTAS: $intf_sueltas"
     error "Hay interfaces sin conectar"
@@ -403,6 +460,17 @@ foreach n {00 01 02 03 04 05 06 07 08 09 10 11 12 14 15 16 17 18 19} {
     }
 }
 puts "CHEQUEO|las 19 ranuras de CaptureBank estan cableadas"
+
+# --- variante construida: la planta esta si y solo si se la pidio ---------
+set hay_planta [llength [get_bd_cells -quiet RL_wrapper_0]]
+if {$hay_planta != $con_planta} {
+    error "con_planta=$con_planta pero RL_wrapper_0 presente=$hay_planta"
+}
+if {$con_planta} {
+    puts "CHEQUEO|variante CON planta RL (lazo cerrado, ~89 DSP: necesita XC7Z020)"
+} else {
+    puts "CHEQUEO|variante SIN planta RL (lazo abierto, ~53 DSP: entra en xc7z007s)"
+}
 
 # --- 2) el reset del datapath NO viene del proc_sys_reset ----------------
 set net_rst [get_property NAME [get_bd_nets -of [get_bd_pins AC_Source_0/i_rst]]]
