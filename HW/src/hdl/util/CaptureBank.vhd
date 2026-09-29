@@ -42,6 +42,14 @@ entity CaptureBank is
         i_d09, i_d10        : in std_logic_vector(31 downto 0);  --! alfa, beta
         i_d11, i_d12        : in std_logic_vector(31 downto 0);  --! theta_vi, direcciones
 
+        --! Ranuras del lazo de corriente. Van en 14..19 y NO en 13, para que
+        --! STATUS_IDX se quede donde esta y el software del PS que ya barre
+        --! 0..13 siga funcionando sin recompilar.
+        i_d14, i_d15        : in std_logic_vector(31 downto 0);  --! i*alfa, i*beta
+        i_d16, i_d17        : in std_logic_vector(31 downto 0);  --! v*alfa, v*beta
+        i_d18               : in std_logic_vector(31 downto 0);  --! q + al_o + sat
+        i_d19               : in std_logic_vector(31 downto 0);  --! clamp de CtrlRegs
+
         o_data    : out std_logic_vector(31 downto 0);
         o_listo   : out std_logic                       --! nivel: hay foto lista para leer
     );
@@ -49,7 +57,7 @@ end entity CaptureBank;
 
 architecture rtl of CaptureBank is
 
-    constant N_REGS     : integer := 13;
+    constant N_REGS     : integer := 20;
     -- El estado NO ocupa una ranura de datos: el indice 12 esta reservado para
     -- 'direcciones' en el mapa del spec. Va en el 13, que antes era fuera de rango.
     constant STATUS_IDX : integer := 13;
@@ -94,6 +102,11 @@ begin
                         regs(6)  <= i_d06;  regs(7)  <= i_d07;  regs(8)  <= i_d08;
                         regs(9)  <= i_d09;  regs(10) <= i_d10;
                         regs(11) <= i_d11;  regs(12) <= i_d12;
+                        -- La 13 no se usa: ese indice lo ocupa el estado.
+                        regs(13) <= (others => '0');
+                        regs(14) <= i_d14;  regs(15) <= i_d15;
+                        regs(16) <= i_d16;  regs(17) <= i_d17;
+                        regs(18) <= i_d18;  regs(19) <= i_d19;
                         armado <= '0';
                         listo  <= '1';
                     end if;
@@ -102,14 +115,18 @@ begin
         end if;
     end process captura;
 
-    -- Se compara como unsigned y recien despues se indexa con los 4 bits bajos:
-    -- convertir i_sel entero de 32 bits a integer desbordaria con el bit 31 en 1.
+    -- Se compara como unsigned y recien despues se indexa: convertir un i_sel
+    -- de 32 bits a integer desbordaria con el bit 31 en 1.
+    --
+    -- El slice es de CINCO bits, no cuatro. Con cuatro, el indice 16 devolvia
+    -- la ranura 0, el 17 la 1, y asi: las ranuras 14..19 eran inalcanzables y
+    -- el error no daba ninguna senal.
     seleccion : process (i_sel, regs, listo)
     begin
         if unsigned(i_sel) = STATUS_IDX then
             o_data <= (0 => listo, others => '0');
         elsif unsigned(i_sel) < N_REGS then
-            o_data <= regs(to_integer(unsigned(i_sel(3 downto 0))));
+            o_data <= regs(to_integer(unsigned(i_sel(4 downto 0))));
         else
             o_data <= (others => '0');
         end if;
