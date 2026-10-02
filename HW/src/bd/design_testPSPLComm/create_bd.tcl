@@ -6,10 +6,21 @@
 # Banco de pruebas del puente PS<->PL: el datapath del conversor en lazo
 # abierto sobre la PL, expuesto al PS por dos AXI GPIO.
 #
-#   axi_gpio_ctrl  ch1 out : bit0 rst, bit1 enable SVM, bit2 arm (captura)
-#                  ch2 out : i_frec (step del NCO de AC_Source)
+#   axi_gpio_ctrl  ch1 out : bit0    rst
+#                            bit1    enable SVM
+#                            bit2    arm (captura)
+#                            bit3    wr_stb  (strobe de escritura a CtrlRegs)
+#                            bits7-4 wr_idx  (indice de registro de CtrlRegs)
+#                  ch2 out : wr_data (dato de escritura a CtrlRegs)
 #   axi_gpio_data  ch1 in  : dato capturado (indice 13 = estado)
-#                  ch2 out : selector de registro
+#                  ch2 out : selector de ranura de CaptureBank (5 b utiles)
+#
+# OJO, cambio del hito 5: i_frec YA NO sale de ch2. Ahora es un registro de
+# CtrlRegs (indice 0) y llega por CtrlRegs_0/o_frec_in; ch2 es wr_data. Escribir
+# la frecuencia en ch2 sin levantar wr_stb con wr_idx=0 no hace nada.
+#
+# Y ch1 es un unico registro de 32 bits: todo cambio tiene que ser
+# read-modify-write PRESERVANDO el bit 0, o se resetea el datapath.
 #
 # La captura la pide el PS (arm) pero la dispara el modulador
 # (o_trg_calculo), asi la foto cae siempre en el mismo punto de la ventana
@@ -126,8 +137,11 @@ set_property -dict [list CONFIG.PCW_FPGA0_PERIPHERAL_FREQMHZ {10} CONFIG.PCW_USE
 set clk_10m [get_bd_pins processing_system7_0/FCLK_CLK0]
 
 # --- GPIO de control (PS -> PL) -------------------------------------------
-# C_DOUT_DEFAULT 0x1 -> arranca con rst=1 y el modulador deshabilitado.
-# C_DOUT_DEFAULT_2 0x53E3 -> step de 50 Hz, util sin que el PS escriba nada.
+# C_DOUT_DEFAULT 0x1 -> arranca con rst=1, modulador deshabilitado, sin arm y
+# con wr_stb en 0 (asi que el valor de ch2 no entra a ningun registro).
+# C_DOUT_DEFAULT_2 0x53E3 -> valor de encendido de wr_data. Es inofensivo
+# justamente porque wr_stb arranca en 0; NO es el step del NCO, que desde el
+# hito 5 vive en CtrlRegs (indice 0, default 0x53E3 = 50 Hz).
 create_bd_cell -type ip -vlnv xilinx.com:ip:axi_gpio:2.0 axi_gpio_ctrl
 set_property -dict [list CONFIG.C_IS_DUAL {1} CONFIG.C_ALL_OUTPUTS {1} CONFIG.C_GPIO_WIDTH {32} CONFIG.C_ALL_OUTPUTS_2 {1} CONFIG.C_GPIO2_WIDTH {32} CONFIG.C_DOUT_DEFAULT {0x00000001} CONFIG.C_DOUT_DEFAULT_2 {0x000053E3}] [get_bd_cells axi_gpio_ctrl]
 
@@ -295,10 +309,7 @@ connect_bd_net [get_bd_pins TClark_wrapper_0/o_alfa]   [get_bd_pins CORDIC_atan2
 connect_bd_net [get_bd_pins TClark_wrapper_0/o_beta]   [get_bd_pins CORDIC_atan2_0/y_in]
 connect_bd_net [get_bd_pins TClark_wrapper_0/o_valido] [get_bd_pins CORDIC_atan2_0/start]
 
-# --- modulador: AMBOS angulos salen de la tension de entrada --------------
-# Consecuencia deliberada: con al_o = be_i la tension de salida queda
-# enganchada en frecuencia y fase a la de entrada. El banco NO hace
-# conversion de frecuencia; eso es el subproyecto C.
+# --- modulador: al_o del LAZO, be_i del angulo de red --------------------
 # al_o viene del LAZO, be_i del angulo de red. Esto es lo que rompe el
 # enganche que ataba la frecuencia de salida a la de entrada: el banco pasa a
 # hacer conversion de frecuencia.
@@ -348,19 +359,55 @@ connect_bd_net [get_bd_pins ControlLazo_0/o_sat]  [get_bd_pins cat_q/In2]
 connect_bd_net [get_bd_pins Relleno11/dout]       [get_bd_pins cat_q/In3]
 connect_bd_net [get_bd_pins cat_q/dout] [get_bd_pins CaptureBank_0/i_d18]
 
-# Ranura 19: el clamp sticky de CtrlRegs, para que el PS sepa si le rechazaron
+# Ranura 03: el clamp sticky de CtrlRegs, para que el PS sepa si le rechazaron
 # un set point.
+#
+# Va en la 03 y NO en la 19: el spec 6.4 reserva la 19 para x1_alfa, el estado
+# del resonante, que es la sonda del criterio 6. Las ranuras 04, 05 y 11 siguen
+# libres en cero, asi que el clamp no desaloja nada.
 create_bd_cell -type ip -vlnv xilinx.com:ip:xlconcat:2.1 cat_clamp
 set_property -dict [list CONFIG.NUM_PORTS {2}] [get_bd_cells cat_clamp]
 mk_const Relleno16 16 0
 connect_bd_net [get_bd_pins CtrlRegs_0/o_clamp] [get_bd_pins cat_clamp/In0]
 connect_bd_net [get_bd_pins Relleno16/dout]     [get_bd_pins cat_clamp/In1]
-connect_bd_net [get_bd_pins cat_clamp/dout] [get_bd_pins CaptureBank_0/i_d19]
+connect_bd_net [get_bd_pins cat_clamp/dout] [get_bd_pins CaptureBank_0/i_d03]
 
-# Las que siguen sin usar van a cero A PROPOSITO, para mantener los indices.
-connect_bd_net [get_bd_pins Cero32/dout] [get_bd_pins CaptureBank_0/i_d03] \
-    [get_bd_pins CaptureBank_0/i_d04] [get_bd_pins CaptureBank_0/i_d05] \
-    [get_bd_pins CaptureBank_0/i_d11] [get_bd_pins CaptureBank_0/i_d12]
+# Ranura 19: RESERVADA para x1_alfa (estado del resonante, spec 6.4). Queda en
+# cero hasta decidir que ventana de los 48 bits de Q8.40 se captura: los 32
+# altos (47..16, Q8.24 como el resto del banco) muestran la magnitud pero
+# pierden el ciclo limite de pocos LSB que el criterio 6 quiere medir; los 32
+# bajos lo muestran pero envuelven. ControlLazo todavia deja o_x1 => open.
+connect_bd_net [get_bd_pins Cero32/dout] [get_bd_pins CaptureBank_0/i_d19]
+
+# Ranura 12: la palabra de conmutacion de la matriz, 18 b utiles.
+#
+# Sin esto el banco NO puede validar el arreglo de signo de seq0 que esta rama
+# trae: o_direcciones_Matriz y o_U/o_V/o_W quedaban las cuatro colgadas, y
+# entonces matrixConmut se recortaba ENTERO en sintesis -- medido, 0 celdas en
+# el netlist implementado. Capturada en sincronismo con o_trg_calculo, esta
+# palabra alcanza para reconstruir el vector aplicado ciclo a ciclo.
+create_bd_cell -type ip -vlnv xilinx.com:ip:xlconcat:2.1 cat_dir
+set_property -dict [list CONFIG.NUM_PORTS {2}] [get_bd_cells cat_dir]
+mk_const Relleno14 14 0
+connect_bd_net [get_bd_pins SVM_wrapper_0/o_direcciones_Matriz] [get_bd_pins cat_dir/In0]
+connect_bd_net [get_bd_pins Relleno14/dout]                     [get_bd_pins cat_dir/In1]
+connect_bd_net [get_bd_pins cat_dir/dout] [get_bd_pins CaptureBank_0/i_d12]
+
+# Ranuras 04, 05 y 11: la tension conmutada de salida, o_U/o_V/o_W.
+#
+# Esto NO es instrumentacion de lujo: es lo que mantiene a matrixConmut dentro
+# del chip. o_direcciones_Matriz (ranura 12) sale del MODULADOR, no de la
+# matriz -- SVM_wrapper.vhd:36 lo asigna desde w_direcciones, que es la salida
+# de modulador_core. Las unicas salidas de matrixConmut_core son o_U/o_V/o_W, y
+# con las tres colgadas opt_design la recortaba entera (medido: 0 celdas en el
+# netlist implementado).
+#
+# Y de paso es el observable mas valioso del banco: sin planta, i_U/i_V/i_W
+# vienen de AC_Source, asi que o_U/o_V/o_W es la forma de onda de tension de
+# salida real del conversor, capturada en sincronismo con o_trg_calculo.
+connect_bd_net [get_bd_pins SVM_wrapper_0/o_U] [get_bd_pins CaptureBank_0/i_d04]
+connect_bd_net [get_bd_pins SVM_wrapper_0/o_V] [get_bd_pins CaptureBank_0/i_d05]
+connect_bd_net [get_bd_pins SVM_wrapper_0/o_W] [get_bd_pins CaptureBank_0/i_d11]
 
 connect_bd_net [get_bd_pins axi_gpio_data/gpio2_io_o] [get_bd_pins CaptureBank_0/i_sel]
 connect_bd_net [get_bd_pins CaptureBank_0/o_data]     [get_bd_pins axi_gpio_data/gpio_io_i]
@@ -379,7 +426,7 @@ connect_bd_net [get_bd_pins CaptureBank_0/o_listo] [get_bd_pins processing_syste
 # Los pines escalares que son miembros de una interfaz (s_axi_awaddr, etc.)
 # se excluyen del barrido: su conectividad vive en el interface net, no en un
 # net comun, asi que se chequean aparte por la interfaz completa.
-set celdas {AC_Source_0 TClark_wrapper_0 CORDIC_atan2_0 SVM_wrapper_0 CaptureBank_0 CtrlRegs_0 ControlLazo_0 axi_gpio_ctrl axi_gpio_data sl_rst sl_en sl_arm sl_wrstb sl_wridx cat_q cat_clamp Relleno11 Relleno16 Cero32}
+set celdas {AC_Source_0 TClark_wrapper_0 CORDIC_atan2_0 SVM_wrapper_0 CaptureBank_0 CtrlRegs_0 ControlLazo_0 axi_gpio_ctrl axi_gpio_data sl_rst sl_en sl_arm sl_wrstb sl_wridx cat_q cat_clamp cat_dir Relleno11 Relleno16 Relleno14 Cero32}
 if {$con_planta} {
     lappend celdas RL_wrapper_0 Coef_a0 Coef_a1 Coef_b1
 }
@@ -418,12 +465,31 @@ foreach c $celdas {
         }
     }
 }
-if {$con_planta} {
-    set esperadas "CORDIC/done y SVM/o_direcciones_Matriz"
-} else {
-    set esperadas "CORDIC/done, SVM/o_direcciones_Matriz y SVM/o_U,o_V,o_W (sin planta)"
+# Salidas que PUEDEN quedar sin uso, y nada mas que esas. Esto es un ASSERT y
+# no un puts informativo: una salida colgada nueva significa que algun bloque se
+# quedo sin carga, y opt_design lo RECORTA ENTERO del bitstream sin que nada
+# chille. Es lo que paso con matrixConmut -- las tres salidas o_U/o_V/o_W
+# colgadas y 0 celdas en el netlist implementado -- y es invisible en el log de
+# sintesis. Con o_U/o_V/o_W cableados la lista ya no depende de con_planta.
+set esperadas [lsort {
+    /CORDIC_atan2_0/done
+    /CORDIC_atan2_0/mag_out
+    /ControlLazo_0/o_listo
+}]
+set reales [lsort $salidas_sueltas]
+puts "CHEQUEO|salidas sin uso: $reales"
+if {$reales ne $esperadas} {
+    puts "CHEQUEO|ESPERADAS: $esperadas"
+    set nuevas {}
+    foreach x $reales { if {[lsearch -exact $esperadas $x] < 0} { lappend nuevas $x } }
+    set faltan {}
+    foreach x $esperadas { if {[lsearch -exact $reales $x] < 0} { lappend faltan $x } }
+    if {[llength $nuevas]} {
+        error "Salidas colgadas NUEVAS: $nuevas -- el bloque que las genera se vaa recortar del bitstream. Cablealas a una ranura de CaptureBank o agregalas ala lista de esperadas si de verdad no se usan."
+    }
+    error "La lista de esperadas quedo vieja: ya tienen carga $faltan"
 }
-puts "CHEQUEO|salidas sin uso (esperado $esperadas): $salidas_sueltas"
+puts "CHEQUEO|las salidas sin uso son exactamente las esperadas"
 if {[llength $intf_sueltas]} {
     puts "CHEQUEO|INTERFACES SUELTAS: $intf_sueltas"
     error "Hay interfaces sin conectar"
