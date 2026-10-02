@@ -37,24 +37,36 @@
 # CONFIGURACION: planta RL simulada
 #
 #   1 = con planta (default). Banco de LAZO CERRADO completo: RL_wrapper_0
-#       realimenta las corrientes al lazo.
+#       realimenta las corrientes al lazo, y los criterios 1 a 4 se pueden
+#       medir sobre la placa en vez de en XSIM.
 #   0 = sin planta. Se omite RL_wrapper_0 y las corrientes medidas entran en
-#       cero. OJO: eso NO valida el control -- el error queda en ref-0 siempre,
-#       los resonantes se van a windup y q satura. Sirve solo para el modulador
-#       (lazo abierto) y el puente PS<->PL.
+#       cero. El lazo queda instanciado pero SIN realimentacion, asi que no
+#       valida el control: el error es ref-0 siempre, los resonantes se van a
+#       windup y q satura. Sirve solo para el modulador (lazo abierto) y el
+#       puente PS<->PL. Es el fallback si el plegado de constantes no alcanza.
 #
-# AREA. Con los coeficientes de la planta entrando por PUERTO, como en esta
-# rama, RL_fase cuesta 12 DSP48E1 por fase (tres productos Q8.24xQ8.24) y son
-# 36 en las tres; el diseno completo pide 89 DSP. Eso entra holgado en el
-# XC7Z020 de la ALINX AX7Z020B (220 DSP) pero NO en los 66 del xc7z007s de la
-# Blackboard, donde la implementacion aborta en DRC UTLZ-1 al 134,85%.
+# MEDIDO el 02/10/2026 sobre impl_1, con los coeficientes como generic:
+#   con planta  -> 57 DSP de 66 (la planta cuesta 6, no 36), LUT 8168
+#   sin planta  -> 51 DSP de 66,                             LUT 6889
+# Los dos con 0 violaciones de setup y de hold.
 #
-# Esta rama es el proyecto GENERAL: coeficientes variables en runtime y
-# precision completa, apuntando al 7020. Para correrlo en la Blackboard esta la
-# rama implementacion_BlackBoard, que los pasa a generic de RL_bd para que la
-# sintesis fuera de contexto los pliegue a sumas desplazadas -- medido, la
-# planta baja de 36 DSP a 6 y el total a 57 de 66. El canje es que ahi los
-# coeficientes dejan de poder cambiarse sin re-sintetizar.
+# HISTORIA, porque el default cambio. RL_fase hace tres productos Q8.24xQ8.24
+# por fase. Con los coeficientes entrando por PUERTO costaba 12 DSP48E1 por
+# fase, 36 en total, y el banco completo pedia 89 DSP contra los 66 del
+# xc7z007s: la implementacion abortaba en DRC UTLZ-1 al 134,85%. La primera
+# salida fue este flag en 0, pero eso deja el control SIN VALIDAR.
+#
+# La salida buena: los coeficientes pasaron a ser GENERIC de RL_bd. Las celdas
+# del BD se sintetizan fuera de contexto, asi que atados a un xlconstant por
+# puerto la sintesis no los veia; como generic la constante vive adentro del
+# modulo y los tres productos se pliegan a sumas desplazadas (a0 = a1 = 70 =
+# 64+4+2; b1 = 2**24-168 con 168 = 128+32+8). Ver el comentario largo en
+# HW/src/hdl/wrappers/RL_bd.vhd.
+#
+# Esta rama (implementacion_BlackBoard) existe justamente por este canje: en
+# main los coeficientes siguen siendo puertos, que es lo general y permite
+# barrerlos en runtime. El XC7Z020 de la ALINX AX7Z020B tiene 220 DSP48E1 y no
+# necesita ninguno de los dos trucos.
 set con_planta 1
 
 set bd_name  "design_testPSPLComm"
@@ -225,11 +237,12 @@ proc mk_const {nombre ancho valor} {
 #
 # OJO: el encabezado de RL_fase.vhd dice "- b1*I[n-1]" pero la implementacion
 # (linea 94) suma, asi que b1 va POSITIVO.
-if {$con_planta} {
-    mk_const Coef_a0 32 70
-    mk_const Coef_a1 32 70
-    mk_const Coef_b1 32 16777048
-}
+# Los coeficientes de la planta NO son constantes del BD: son genericos de
+# RL_bd (ver el comentario largo en HW/src/hdl/wrappers/RL_bd.vhd). Atados a
+# xlconstant por puerto, la sintesis OOC de la celda no los ve y RL_fase cuesta
+# 12 DSP48E1 por fase, 36 en total. Como generic la constante vive adentro del
+# modulo, se pliega a sumas desplazadas: medido, 6 DSP en vez de 36.
+
 # Cero32 existe SOLO sin planta, donde alimenta las corrientes medidas (las
 # ranuras 06, 07, 08). Con planta las 19 ranuras tienen senal real y esta
 # constante se queda sin uso: dejarla creada hace que su dout quede colgado y
@@ -246,6 +259,8 @@ create_bd_cell -type module -reference CORDIC_atan2   CORDIC_atan2_0
 create_bd_cell -type module -reference SVM_wrapper    SVM_wrapper_0
 if {$con_planta} {
     create_bd_cell -type module -reference RL_bd      RL_wrapper_0
+    # R = 1,2 ohm, L = 12 mH, Ts = 204,8 us -> a0 = a1 = 70, b1 = 16777048
+    set_property -dict [list CONFIG.G_C_A0 {70} CONFIG.G_C_A1 {70}         CONFIG.G_C_B1 {16777048}] [get_bd_cells RL_wrapper_0]
 }
 create_bd_cell -type module -reference CaptureBank    CaptureBank_0
 create_bd_cell -type module -reference TrgRetardo     TrgRetardo_0
@@ -374,9 +389,6 @@ connect_bd_net [get_bd_pins CORDIC_atan2_0/angle_out] [get_bd_pins SVM_wrapper_0
 # auditoria no las marca; se las sigue viendo por CaptureBank si algun dia se
 # cablean a una ranura.
 if {$con_planta} {
-    connect_bd_net [get_bd_pins Coef_a0/dout] [get_bd_pins RL_wrapper_0/i_c_a0]
-    connect_bd_net [get_bd_pins Coef_a1/dout] [get_bd_pins RL_wrapper_0/i_c_a1]
-    connect_bd_net [get_bd_pins Coef_b1/dout] [get_bd_pins RL_wrapper_0/i_c_b1]
     connect_bd_net [get_bd_pins SVM_wrapper_0/o_U] [get_bd_pins RL_wrapper_0/i_U]
     connect_bd_net [get_bd_pins SVM_wrapper_0/o_V] [get_bd_pins RL_wrapper_0/i_V]
     connect_bd_net [get_bd_pins SVM_wrapper_0/o_W] [get_bd_pins RL_wrapper_0/i_W]
@@ -478,7 +490,7 @@ if {!$con_planta} {
     lappend celdas Cero32
 }
 if {$con_planta} {
-    lappend celdas RL_wrapper_0 Coef_a0 Coef_a1 Coef_b1
+    lappend celdas RL_wrapper_0
 }
 set entradas_sueltas {}
 set salidas_sueltas {}
@@ -540,6 +552,19 @@ if {$reales ne $esperadas} {
     error "La lista de esperadas quedo vieja: ya tienen carga $faltan"
 }
 puts "CHEQUEO|las salidas sin uso son exactamente las esperadas"
+
+# --- los genericos de la planta se fijaron de verdad ----------------------
+# Los defaults de RL_bd.vhd son los MISMOS valores, asi que si el nombre de la
+# propiedad estuviera mal el BD se armaria igual y el error quedaria invisible.
+if {$con_planta} {
+    foreach {g esperado} {G_C_A0 70 G_C_A1 70 G_C_B1 16777048} {
+        set leido [get_property CONFIG.$g [get_bd_cells RL_wrapper_0]]
+        if {$leido ne $esperado} {
+            error "El generico $g de RL_wrapper_0 quedo en '$leido' y no en $esperado. Si volvio vacio, el nombre de la propiedad CONFIG.$g no existe en la celda y los coeficientes estan tomando el default de RL_bd.vhd."
+        }
+    }
+    puts "CHEQUEO|los coeficientes de la planta son genericos: a0=70 a1=70 b1=16777048"
+}
 if {[llength $intf_sueltas]} {
     puts "CHEQUEO|INTERFACES SUELTAS: $intf_sueltas"
     error "Hay interfaces sin conectar"
@@ -604,9 +629,9 @@ if {$hay_planta != $con_planta} {
     error "con_planta=$con_planta pero RL_wrapper_0 presente=$hay_planta"
 }
 if {$con_planta} {
-    puts "CHEQUEO|variante CON planta RL (lazo cerrado, ~89 DSP: necesita XC7Z020)"
+    puts "CHEQUEO|variante CON planta RL (lazo cerrado, 57 DSP medidos: entra en xc7z007s)"
 } else {
-    puts "CHEQUEO|variante SIN planta RL (lazo abierto, ~53 DSP: entra en xc7z007s)"
+    puts "CHEQUEO|variante SIN planta RL (lazo abierto, 51 DSP medidos; NO valida el control)"
 }
 
 # --- 2) el reset del datapath NO viene del proc_sys_reset ----------------
