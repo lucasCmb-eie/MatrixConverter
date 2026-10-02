@@ -11,6 +11,7 @@
 #                            bit2    arm (captura)
 #                            bit3    wr_stb  (strobe de escritura a CtrlRegs)
 #                            bits7-4 wr_idx  (indice de registro de CtrlRegs)
+#                            bit8    rst_reg (reset SOLO del banco CtrlRegs)
 #                  ch2 out : wr_data (dato de escritura a CtrlRegs)
 #   axi_gpio_data  ch1 in  : dato capturado (indice 13 = estado)
 #                  ch2 out : selector de ranura de CaptureBank (5 b utiles)
@@ -35,21 +36,26 @@
 # ---------------------------------------------------------------------------
 # CONFIGURACION: planta RL simulada
 #
-#   0 = sin planta (default). Se omite RL_wrapper_0 y las corrientes medidas
-#       entran en cero. El lazo queda instanciado pero sin realimentacion:
-#       sirve para validar el modulador (lazo abierto) y el puente PS<->PL.
-#   1 = con planta. Banco de lazo cerrado completo.
+#   1 = con planta (default). Banco de LAZO CERRADO completo: RL_wrapper_0
+#       realimenta las corrientes al lazo.
+#   0 = sin planta. Se omite RL_wrapper_0 y las corrientes medidas entran en
+#       cero. OJO: eso NO valida el control -- el error queda en ref-0 siempre,
+#       los resonantes se van a windup y q satura. Sirve solo para el modulador
+#       (lazo abierto) y el puente PS<->PL.
 #
-# Por que el default es 0: RL_fase cuesta 12 DSP48E1 por fase (tres productos
-# Q8.24xQ8.24) y son 3 fases = 36 DSP, el 40% de los 66 que tiene el
-# xc7z007s de la Blackboard. Con planta el diseno pide 89 DSP y la
-# implementacion aborta en DRC UTLZ-1 (134,85%). Sin planta quedan 53.
+# AREA. Con los coeficientes de la planta entrando por PUERTO, como en esta
+# rama, RL_fase cuesta 12 DSP48E1 por fase (tres productos Q8.24xQ8.24) y son
+# 36 en las tres; el diseno completo pide 89 DSP. Eso entra holgado en el
+# XC7Z020 de la ALINX AX7Z020B (220 DSP) pero NO en los 66 del xc7z007s de la
+# Blackboard, donde la implementacion aborta en DRC UTLZ-1 al 134,85%.
 #
-# Esto es una restriccion del chip actual, no del diseno: el XC7Z020 de la
-# ALINX AX7Z020B (la placa a la que se piensa migrar, por HDMI) tiene 220
-# DSP48E1, y ahi el banco completo entra al 40% sin tocar una linea de RTL.
-# Cuando se migre, poner esto en 1 y cambiar el -part en build.tcl.
-set con_planta 0
+# Esta rama es el proyecto GENERAL: coeficientes variables en runtime y
+# precision completa, apuntando al 7020. Para correrlo en la Blackboard esta la
+# rama implementacion_BlackBoard, que los pasa a generic de RL_bd para que la
+# sintesis fuera de contexto los pliegue a sumas desplazadas -- medido, la
+# planta baja de 36 DSP a 6 y el total a 57 de 66. El canje es que ahi los
+# coeficientes dejan de poder cambiarse sin re-sintetizar.
+set con_planta 1
 
 set bd_name  "design_testPSPLComm"
 set bd_dir   [file normalize [file dirname [info script]]/..]
@@ -139,6 +145,11 @@ set clk_10m [get_bd_pins processing_system7_0/FCLK_CLK0]
 # --- GPIO de control (PS -> PL) -------------------------------------------
 # C_DOUT_DEFAULT 0x1 -> arranca con rst=1, modulador deshabilitado, sin arm y
 # con wr_stb en 0 (asi que el valor de ch2 no entra a ningun registro).
+# El bit 8 (rst_reg) arranca en 0 A PROPOSITO: CtrlRegs inicializa shadow y
+# activo con DEFAULTS en la declaracion (CtrlRegs.vhd:83-84), asi que los FF ya
+# vienen con los defaults en el bitstream y no hace falta pulsar el reset. Si
+# arrancara en 1 el banco ignoraria las escrituras hasta que el PS lo baje, que
+# es justo el tipo de paso que uno se olvida.
 # C_DOUT_DEFAULT_2 0x53E3 -> valor de encendido de wr_data. Es inofensivo
 # justamente porque wr_stb arranca en 0; NO es el step del NCO, que desde el
 # hito 5 vive en CtrlRegs (indice 0, default 0x53E3 = 50 Hz).
@@ -170,6 +181,20 @@ mk_slice sl_arm 2
 # Puerto indexado de set points, montado sobre los bits libres de ctrl/ch1.
 # No hace falta un tercer AXI GPIO: ch1 usaba 3 de 32 bits.
 mk_slice sl_wrstb 3
+
+# Reset PROPIO del banco de set points, separado del reset del datapath.
+#
+# Por que no comparte sl_rst: CtrlRegs recarga shadow y activo con DEFAULTS en
+# el reset, y los defaults son INERTES a proposito (amp_ref = Kp = b = 0). Con
+# el reset compartido, un reset para reiniciar el modulador borraba los 10 set
+# points y el clamp sticky, y el convertidor volvia generando cero con el PS
+# creyendo que su sintonia seguia cargada -- sin ninguna indicacion, porque el
+# clamp que lo explicaria se borraba tambien. En un conversor de potencia ese
+# es el escenario del operador que resetea para salir de una falla.
+#
+# Ahora son independientes: se puede resetear el datapath sin perder la
+# sintonia, y se puede limpiar el banco (y el clamp) sin tocar el datapath.
+mk_slice sl_rstreg 8
 # wr_idx son cuatro bits, asi que no sirve mk_slice, que saca uno solo.
 create_bd_cell -type ip -vlnv xilinx.com:ip:xlslice:1.0 sl_wridx
 set_property -dict [list CONFIG.DIN_WIDTH {32} CONFIG.DIN_FROM {7} \
@@ -205,8 +230,14 @@ if {$con_planta} {
     mk_const Coef_a1 32 70
     mk_const Coef_b1 32 16777048
 }
-# relleno de las ranuras de CaptureBank que no se usan en este banco
-mk_const Cero32  32 0
+# Cero32 existe SOLO sin planta, donde alimenta las corrientes medidas (las
+# ranuras 06, 07, 08). Con planta las 19 ranuras tienen senal real y esta
+# constante se queda sin uso: dejarla creada hace que su dout quede colgado y
+# el assert de salidas sueltas aborta, con razon -- una celda muerta en el BD es
+# ruido que despues cuesta distinguir de un cable que falta.
+if {!$con_planta} {
+    mk_const Cero32  32 0
+}
 
 # --- bloques del datapath (RTL modules, nunca los IP de HW/src/ip/) -------
 create_bd_cell -type module -reference AC_Source      AC_Source_0
@@ -227,8 +258,10 @@ create_bd_cell -type module -reference CtrlRegs    CtrlRegs_0
 create_bd_cell -type module -reference ControlLazo ControlLazo_0
 
 connect_bd_net $clk_10m [get_bd_pins CtrlRegs_0/i_clk] [get_bd_pins ControlLazo_0/i_clk]
-connect_bd_net [get_bd_pins sl_rst/Dout] [get_bd_pins CtrlRegs_0/i_rst] \
-    [get_bd_pins ControlLazo_0/i_rst]
+# ControlLazo si resetea con el datapath: el lazo tiene que arrancar de cero
+# junto con el modulador. CtrlRegs NO, va por su propio bit (ver mas arriba).
+connect_bd_net [get_bd_pins sl_rst/Dout]    [get_bd_pins ControlLazo_0/i_rst]
+connect_bd_net [get_bd_pins sl_rstreg/Dout] [get_bd_pins CtrlRegs_0/i_rst]
 connect_bd_net [get_bd_pins sl_en/Dout]  [get_bd_pins ControlLazo_0/i_en]
 
 connect_bd_net [get_bd_pins sl_wrstb/Dout] [get_bd_pins CtrlRegs_0/i_wr_stb]
@@ -372,12 +405,11 @@ connect_bd_net [get_bd_pins CtrlRegs_0/o_clamp] [get_bd_pins cat_clamp/In0]
 connect_bd_net [get_bd_pins Relleno16/dout]     [get_bd_pins cat_clamp/In1]
 connect_bd_net [get_bd_pins cat_clamp/dout] [get_bd_pins CaptureBank_0/i_d03]
 
-# Ranura 19: RESERVADA para x1_alfa (estado del resonante, spec 6.4). Queda en
-# cero hasta decidir que ventana de los 48 bits de Q8.40 se captura: los 32
-# altos (47..16, Q8.24 como el resto del banco) muestran la magnitud pero
-# pierden el ciclo limite de pocos LSB que el criterio 6 quiere medir; los 32
-# bajos lo muestran pero envuelven. ControlLazo todavia deja o_x1 => open.
-connect_bd_net [get_bd_pins Cero32/dout] [get_bd_pins CaptureBank_0/i_d19]
+# Ranura 19: x1_alfa, el estado del resonante alfa (spec 6.4). Son los 32 bits
+# BAJOS de Q8.40, que es lo que el criterio 6 necesita -- pide acotar el ciclo
+# limite a pocos LSB, y truncando a Q8.24 esos LSB desaparecen. La magnitud no
+# se pierde: o_v_alfa (ranura 16) es u = kp*e + x1(47..16).
+connect_bd_net [get_bd_pins ControlLazo_0/o_x1_alfa] [get_bd_pins CaptureBank_0/i_d19]
 
 # Ranura 12: la palabra de conmutacion de la matriz, 18 b utiles.
 #
@@ -426,7 +458,10 @@ connect_bd_net [get_bd_pins CaptureBank_0/o_listo] [get_bd_pins processing_syste
 # Los pines escalares que son miembros de una interfaz (s_axi_awaddr, etc.)
 # se excluyen del barrido: su conectividad vive en el interface net, no en un
 # net comun, asi que se chequean aparte por la interfaz completa.
-set celdas {AC_Source_0 TClark_wrapper_0 CORDIC_atan2_0 SVM_wrapper_0 CaptureBank_0 CtrlRegs_0 ControlLazo_0 axi_gpio_ctrl axi_gpio_data sl_rst sl_en sl_arm sl_wrstb sl_wridx cat_q cat_clamp cat_dir Relleno11 Relleno16 Relleno14 Cero32}
+set celdas {AC_Source_0 TClark_wrapper_0 CORDIC_atan2_0 SVM_wrapper_0 CaptureBank_0 CtrlRegs_0 ControlLazo_0 axi_gpio_ctrl axi_gpio_data sl_rst sl_en sl_arm sl_wrstb sl_wridx sl_rstreg cat_q cat_clamp cat_dir Relleno11 Relleno16 Relleno14}
+if {!$con_planta} {
+    lappend celdas Cero32
+}
 if {$con_planta} {
     lappend celdas RL_wrapper_0 Coef_a0 Coef_a1 Coef_b1
 }
@@ -518,6 +553,16 @@ if {$d_al eq $d_be} {
     error "al_o y be_i comparten driver: volvio el enganche de frecuencia"
 }
 puts "CHEQUEO|al_o y be_i tienen drivers distintos"
+
+# --- los dos resets son independientes -----------------------------------
+# Si CtrlRegs volviera a compartir el reset del datapath, un reset del
+# modulador borraria los set points en silencio.
+set n_dp  [get_bd_nets -of_objects [get_bd_pins ControlLazo_0/i_rst]]
+set n_reg [get_bd_nets -of_objects [get_bd_pins CtrlRegs_0/i_rst]]
+if {$n_dp eq $n_reg} {
+    error "CtrlRegs/i_rst y ControlLazo/i_rst comparten el net $n_dp: un reset del datapath borraria los set points"
+}
+puts "CHEQUEO|CtrlRegs tiene reset propio ($n_reg) distinto del datapath ($n_dp)"
 
 # Las 19 ranuras cableadas de CaptureBank (la 13 es el estado, no tiene pin).
 foreach n {00 01 02 03 04 05 06 07 08 09 10 11 12 14 15 16 17 18 19} {

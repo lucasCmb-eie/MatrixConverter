@@ -52,6 +52,17 @@ entity ControlLazo is
         o_i_beta   : out std_logic_vector(31 downto 0);
         o_v_alfa   : out std_logic_vector(31 downto 0);
         o_v_beta   : out std_logic_vector(31 downto 0);
+        --! Estado x1 del resonante alfa: los 32 bits BAJOS de Q8.40.
+        --!
+        --! Es la sonda del criterio 6 (spec 6.4, ranura 19 de CaptureBank), que
+        --! pide acotar el ciclo limite de x1/x2 a pocos LSB. Por eso van los
+        --! bits BAJOS y no los altos: un ciclo limite de unos pocos LSB de
+        --! Q8.40 es invisible si se truncan 16 bits a Q8.24.
+        --!
+        --! La magnitud de x1 no se pierde: o_v_alfa es u = kp*e + x1(47..16),
+        --! asi que la parte alta ya se observa por la ranura 16. Esta ranura
+        --! lleva lo que no esta en ningun otro lado.
+        o_x1_alfa  : out std_logic_vector(31 downto 0);
         o_listo    : out std_logic                     --! un pulso al cerrar el Ts
     );
 end entity ControlLazo;
@@ -81,6 +92,8 @@ architecture rtl of ControlLazo is
     signal pr_en  : std_logic := '0';
     signal sat_z1 : std_logic := '0';
     signal v_alfa : signed(31 downto 0);
+    --! x1 del resonante alfa, Q8.40 en 48 bits (solo se exportan los 32 bajos)
+    signal x1_alfa : signed(47 downto 0);
     signal v_beta : signed(31 downto 0);
 
     -- rect -> polar
@@ -105,6 +118,7 @@ begin
     o_i_alfa   <= i_alfa_slv;
     o_i_beta   <= i_beta_slv;
     o_v_alfa   <= std_logic_vector(v_alfa);
+    o_x1_alfa  <= std_logic_vector(x1_alfa(31 downto 0));
     o_v_beta   <= std_logic_vector(v_beta);
     o_q        <= q_reg;
     o_al_o     <= al_o_reg;
@@ -126,7 +140,7 @@ begin
         port map (i_clk => i_clk, i_rst => i_rst, i_en => pr_en,
                   i_sat => congelar,
                   i_k => signed(i_k), i_b => signed(i_b), i_kp => signed(i_kp),
-                  i_e => e_alfa, o_u => v_alfa, o_x1 => open, o_x2 => open);
+                  i_e => e_alfa, o_u => v_alfa, o_x1 => x1_alfa, o_x2 => open);
 
     pr_beta : entity work.PR_2int
         port map (i_clk => i_clk, i_rst => i_rst, i_en => pr_en,
