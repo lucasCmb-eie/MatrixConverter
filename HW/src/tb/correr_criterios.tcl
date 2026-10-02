@@ -52,6 +52,15 @@ set casos {
 foreach {dir top ms} $casos {
     file mkdir $dir
     cd $dir
+
+    # xvhdl compilo la libreria en el directorio PADRE (./xsim.dir/work), y acá
+    # estamos un nivel abajo porque el TB escribe su CSV en el cwd. Sin este
+    # xsim.ini, xelab no encuentra nada y falla con
+    #   ERROR: [XSIM 43-3225] Cannot find design unit work.<top> in library work
+    set fini [open xsim.ini w]
+    puts $fini "work=../xsim.dir/work"
+    close $fini
+
     exec xelab -debug off work.$top -s lazo
     set fh [open run.tcl w]
     puts $fh "run $ms ms"

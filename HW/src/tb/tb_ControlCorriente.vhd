@@ -153,6 +153,11 @@ begin
                   o_ref_alfa => ref_a, o_ref_beta => ref_b,
                   o_i_alfa => i_a, o_i_beta => i_b,
                   o_v_alfa => v_a, o_v_beta => v_b,
+                  -- o_x1_alfa es la sonda del criterio 6 (ranura 19 de
+                  -- CaptureBank), que se mide sobre la placa. Aca va a open:
+                  -- asociarla explicito y no omitirla, porque un puerto de
+                  -- salida sin asociar es error de elaboracion.
+                  o_x1_alfa => open,
                   o_listo => listo);
 
     -- ---------------- modulador + matriz ----------------
