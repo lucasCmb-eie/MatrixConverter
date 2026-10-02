@@ -249,9 +249,13 @@ begin
 
         -- El estado tiene que seguir en 13: el software del PS que ya existe
         -- barre 0..13 y lo lee ahi.
+        --
+        -- Se mira o_data, NO o_listo: o_listo no depende de i_sel en absoluto,
+        -- asi que aseverarla aca daria una cobertura falsa -- la asercion
+        -- pasaria con cualquier valor de sel.
         sel <= std_logic_vector(to_unsigned(13, 32));
         wait for 1 ns;
-        check_listo(listo, '1', "el estado sigue en 13");
+        check(d, x"00000001", "el estado sigue en 13 (bit 0 = listo)");
 
         -- i_sel con el bit 31 puesto. El PS escribe 32 bits; si se indexara
         -- sin comparar antes como unsigned, el to_integer desbordaria.

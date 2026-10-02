@@ -8,6 +8,17 @@ end entity tb_CtrlRegs;
 
 architecture sim of tb_CtrlRegs is
     constant PER : time := 100 ns;
+    --! Ts = 2048 clocks a 10 MHz = 204,8 us
+    constant TS_SEG : real := 2048.0 / 10.0e6;
+    --! GHDL 0.29 no trae ieee.math_real, asi que PI va como literal
+    constant PI_R   : real := 3.14159265358979;
+    --! Tolerancia del chequeo de coherencia: un LSB del step del NCO,
+    --! 10e6/2**32 = 2,33 mHz. Es la resolucion con que paso_ref puede
+    --! expresar una frecuencia, asi que pedir mas seria pedirle a los dos
+    --! registros que coincidan mejor de lo que uno de ellos puede. El par
+    --! correcto (21475, 0x1077D9) difiere 0,37 mHz; el nibble de menos que
+    --! tenia este default difiere 4,3 mHz.
+    constant TOL_HZ : real := 10.0e6 / 2.0**32;
 
     signal clk : std_logic := '0';
     signal rst : std_logic := '1';
@@ -61,6 +72,17 @@ begin
             wait until rising_edge(clk);
         end procedure pulso_trg;
 
+        -- frecuencias derivadas de los registros, para el chequeo de coherencia
+        variable f_de_paso : real;
+        variable f_de_k    : real;
+        -- snapshot del banco activo, para el Review Focus 1
+        variable v_frec, v_paso, v_amp, v_kp, v_b, v_q, v_inv : std_logic_vector(31 downto 0);
+        variable v_k   : std_logic_vector(24 downto 0);
+        variable v_phi : std_logic_vector(10 downto 0);
+        variable v_frz : std_logic;
+        variable sen_x     : real;
+        variable asen_x    : real;
+
     begin
         wait for 4 * PER;
         rst <= '0';
@@ -79,6 +101,19 @@ begin
         assert freeze = '1'
             report "el anti-windup deberia arrancar activo" severity failure;
 
+        -- inv_vi es la constante que el LAZO ESCONDE: el resonante compensa el
+        -- error de ganancia y el regimen da bien igual, asi que si el default no
+        -- coincide con el valor con que se validó en XSIM
+        -- (tb_ControlCorriente.vhd:62) nada lo delata hasta comparar el q de
+        -- regimen contra |v*|/V_i analitico. Por eso se asevera explicito.
+        assert inv_vi = x"01EE54BB"
+            report "el default de inv_vi no es 32396475 (1/0,5179 en Q8.24), es " &
+                   integer'image(to_integer(unsigned(inv_vi))) severity failure;
+        assert q_max = x"00DDB3D7"
+            report "el default de q_max no es sqrt(3)/2 en Q8.24" severity failure;
+        assert clamp = x"0000"
+            report "o_clamp deberia arrancar limpio" severity failure;
+
         -- ---- los defaults de k y paso_ref tienen que ser la MISMA f_o ----
         -- El spec 6.5 lo pide como chequeo: si k dice 50 Hz y paso_ref dice
         -- otra cosa, el resonante arranca sintonizado a una frecuencia
@@ -86,12 +121,30 @@ begin
         -- regimen.
         --   paso_ref = round(f*2**32/10e6) * 2048
         --   k        = 2*sin(pi*f*Ts) en Q1.24
-        -- Para f = 50 Hz: 21475*2048 = 0x029F0800 y k = 0x1077D9.
-        assert paso_ref = x"029F0800"
-            report "el default de paso_ref no es 50 Hz" severity failure;
-        assert k = std_logic_vector(to_signed(16#1077D9#, 25))
-            report "k y paso_ref arrancan en frecuencias distintas"
-            severity failure;
+        --
+        -- OJO: comparar cada registro contra un literal NO chequea esto. Dos
+        -- aserciones independientes pasan felices con dos frecuencias
+        -- distintas, que es exactamente el bug que esto tiene que cazar. Hay
+        -- que DERIVAR la frecuencia de cada uno y compararlas entre si.
+        f_de_paso := real(to_integer(unsigned(paso_ref)) / 2048)
+                     * 10.0e6 / 2.0**32;
+        -- k = 2*sin(pi*f*Ts) -> f = arcsin(k/2) / (pi*Ts). Sin math_real,
+        -- arcsin por serie: x + x^3/6 + 3x^5/40. A x ~ 0,032 el error del
+        -- truncamiento es ~1e-9, cuatro ordenes menos que los mHz que hay
+        -- que resolver.
+        sen_x  := real(to_integer(signed(k))) / 2.0**24 / 2.0;
+        asen_x := sen_x + (sen_x**3) / 6.0 + 3.0 * (sen_x**5) / 40.0;
+        f_de_k := asen_x / (PI_R * TS_SEG);
+        report "f(paso_ref) = " & real'image(f_de_paso) &
+               " Hz   f(k) = " & real'image(f_de_k) & " Hz";
+        assert abs(f_de_paso - f_de_k) < TOL_HZ
+            report "k y paso_ref arrancan en frecuencias distintas: " &
+                   real'image(f_de_paso) & " Hz vs " & real'image(f_de_k) &
+                   " Hz" severity failure;
+        -- y que ademas sean los 50 Hz que los comentarios prometen
+        assert abs(f_de_paso - 50.0) < TOL_HZ
+            report "el default de paso_ref no es 50 Hz, es " &
+                   real'image(f_de_paso) severity failure;
 
         -- ---- una escritura no se ve hasta el commit ----
         escribir(2, 1677722);              -- amp_ref = 0,10 pu
@@ -106,12 +159,58 @@ begin
             report "el commit no llego al banco activo" severity failure;
 
         -- ---- Review Focus 1: indices sin asignar no escriben nada ----
-        escribir(11, 16#DEADBEE#);
+        -- Son DOS propiedades y hay que medir las dos por separado. Escribir
+        -- en 11 y despues commitear, aseverando un solo registro, no mide
+        -- ninguna: shadow(11) no tiene salida, asi que lo unico que podria
+        -- detectar es un aliasing sobre ese registro puntual.
+        v_frec := frec_in; v_paso := paso_ref; v_amp := amp_ref;
+        v_k    := k;       v_kp   := kp;       v_b   := b_kr;
+        v_phi  := phi_i;   v_q    := q_max;    v_inv := inv_vi;
+        v_frz  := freeze;
+
+        -- (a) NO deben hacer ALIAS sobre un registro mapeado. Se escribe a los
+        -- cinco y se commitea EN LIMPIO (shadow == activo salvo por un alias),
+        -- asi que si alguno cayera sobre un indice mapeado, el commit lo
+        -- aplicaria y el snapshot no cerraria.
+        --
+        -- OJO con el orden: esta mitad tiene que medirse ANTES de ensuciar el
+        -- shadow en (b). Una escritura de restauracion a un indice mapeado
+        -- pisaria justamente el alias que se quiere detectar.
+        for idx in 10 to 14 loop
+            escribir(idx, 16#DEADBEE#);
+        end loop;
         escribir(15, 0);
         pulso_trg;
-        assert amp_ref = std_logic_vector(to_signed(1677722, 32))
+        assert frec_in = v_frec and paso_ref = v_paso and amp_ref = v_amp
+           and k = v_k and kp = v_kp and b_kr = v_b and phi_i = v_phi
+           and q_max = v_q and inv_vi = v_inv and freeze = v_frz
             report "una escritura a un indice sin asignar corrompio el banco"
             severity failure;
+
+        -- (b) NO deben dejar un commit pendiente. Para que sea detectable el
+        -- shadow tiene que diferir del activo: si alguno de los 10..14 pusiera
+        -- `pendiente`, el pulso_trg de abajo aplicaria ese 424242 sin que nadie
+        -- lo pidiera.
+        escribir(2, 424242);
+        for idx in 10 to 14 loop
+            escribir(idx, 16#C0FFEE#);
+        end loop;
+        pulso_trg;
+        assert amp_ref = v_amp
+            report "un indice sin asignar dejo un commit pendiente: i_trg " &
+                   "aplico el shadow sin que nadie lo pidiera"
+            severity failure;
+
+        -- se restaura el shadow, que quedo con 424242 colgado (CtrlRegs no
+        -- tiene como descartarlo; si no, viajaria con el proximo commit ajeno)
+        escribir(2, to_integer(signed(v_amp)));
+
+        -- NOTA sobre la otra mitad del Review Focus 1: que una escritura a
+        -- 10..14 escriba o no shadow(10..14) es INOBSERVABLE desde los puertos,
+        -- porque esos indices no tienen salida. Un mutante que saque la guarda
+        -- `idx <= 9` no lo caza ningun test de caja negra. La guarda sigue
+        -- siendo correcta -- importa el dia que se mapee el indice 10 -- pero
+        -- lo testeable es el aliasing de (a), no el escribir en si.
 
         -- ---- Review Focus 2: k >= 2**24 se clampea ----
         -- En 25 bits, 2**24 tiene el bit de signo puesto: el resonante

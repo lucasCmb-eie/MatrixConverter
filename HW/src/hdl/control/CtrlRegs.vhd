@@ -68,14 +68,14 @@ architecture rtl of CtrlRegs is
     --! ganancias en cero es la unica opcion defendible.
     constant DEFAULTS : banco_t := (
         0  => x"000053E3",   -- frec_in  : 50 Hz
-        1  => x"029F0800",   -- paso_ref : 50 Hz por Ts (21475 * 2048)
+        1  => x"029F1800",   -- paso_ref : 50 Hz por Ts (21475 * 2048 = 43980800)
         2  => x"00000000",   -- amp_ref  : 0
         3  => x"001077D9",   -- k        : 2*sin(pi*50*Ts) en Q1.24
         4  => x"00000000",   -- Kp       : 0
         5  => x"00000000",   -- b        : 0
         6  => x"00000000",   -- phi_i    : 0, factor de potencia unitario
         7  => x"00DDB3D7",   -- q_max    : sqrt(3)/2 en Q8.24
-        8  => x"01EE0F3B",   -- inv_vi   : 1/0,5179 en Q8.24
+        8  => x"01EE54BB",   -- inv_vi   : 1/0,5179 en Q8.24 = 32396475
         9  => x"00000001",   -- freeze   : anti-windup activo
         others => x"00000000"
     );
