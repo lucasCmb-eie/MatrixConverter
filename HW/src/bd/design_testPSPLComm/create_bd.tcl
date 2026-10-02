@@ -260,7 +260,7 @@ create_bd_cell -type module -reference SVM_wrapper    SVM_wrapper_0
 if {$con_planta} {
     create_bd_cell -type module -reference RL_bd      RL_wrapper_0
     # R = 1,2 ohm, L = 12 mH, Ts = 204,8 us -> a0 = a1 = 70, b1 = 16777048
-    set_property -dict [list CONFIG.G_C_A0 {70} CONFIG.G_C_A1 {70}         CONFIG.G_C_B1 {16777048}] [get_bd_cells RL_wrapper_0]
+    set_property -dict [list CONFIG.G_C_A0 {70} CONFIG.G_C_A1 {70} CONFIG.G_C_B1 {16777048}] [get_bd_cells RL_wrapper_0]
 }
 create_bd_cell -type module -reference CaptureBank    CaptureBank_0
 
