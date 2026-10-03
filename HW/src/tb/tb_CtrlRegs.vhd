@@ -31,7 +31,8 @@ architecture sim of tb_CtrlRegs is
     signal kp, b_kr, q_max, inv_vi    : std_logic_vector(31 downto 0);
     signal k      : std_logic_vector(24 downto 0);
     signal phi_i  : std_logic_vector(10 downto 0);
-    signal freeze : std_logic;
+    signal freeze  : std_logic;
+    signal retardo : std_logic_vector(10 downto 0);
     signal clamp  : std_logic_vector(15 downto 0);
     signal fin    : boolean := false;
 begin
@@ -44,7 +45,8 @@ begin
                   o_frec_in => frec_in, o_paso_ref => paso_ref,
                   o_amp_ref => amp_ref, o_k => k, o_kp => kp, o_b => b_kr,
                   o_phi_i => phi_i, o_q_max => q_max, o_inv_vi => inv_vi,
-                  o_freeze => freeze, o_clamp => clamp);
+                  o_freeze => freeze, o_retardo => retardo,
+                  o_clamp => clamp);
 
     estimulo : process
 
@@ -80,6 +82,7 @@ begin
         variable v_k   : std_logic_vector(24 downto 0);
         variable v_phi : std_logic_vector(10 downto 0);
         variable v_frz : std_logic;
+        variable v_ret : std_logic_vector(10 downto 0);
         variable sen_x     : real;
         variable asen_x    : real;
 
@@ -159,14 +162,19 @@ begin
             report "el commit no llego al banco activo" severity failure;
 
         -- ---- Review Focus 1: indices sin asignar no escriben nada ----
+        -- OJO: son 11..14, no 10..14. El 10 se asigno a `retardo` cuando se
+        -- agrego TrgRetardo, y el test de mas abajo verifica que SI escriba.
         -- Son DOS propiedades y hay que medir las dos por separado. Escribir
         -- en 11 y despues commitear, aseverando un solo registro, no mide
         -- ninguna: shadow(11) no tiene salida, asi que lo unico que podria
         -- detectar es un aliasing sobre ese registro puntual.
+        --
+        -- El snapshot cubre los ONCE registros con salida, retardo incluido:
+        -- asi un alias sobre el indice 10 tampoco pasa.
         v_frec := frec_in; v_paso := paso_ref; v_amp := amp_ref;
         v_k    := k;       v_kp   := kp;       v_b   := b_kr;
         v_phi  := phi_i;   v_q    := q_max;    v_inv := inv_vi;
-        v_frz  := freeze;
+        v_frz  := freeze;  v_ret := retardo;
 
         -- (a) NO deben hacer ALIAS sobre un registro mapeado. Se escribe a los
         -- cinco y se commitea EN LIMPIO (shadow == activo salvo por un alias),
@@ -176,7 +184,7 @@ begin
         -- OJO con el orden: esta mitad tiene que medirse ANTES de ensuciar el
         -- shadow en (b). Una escritura de restauracion a un indice mapeado
         -- pisaria justamente el alias que se quiere detectar.
-        for idx in 10 to 14 loop
+        for idx in 11 to 14 loop
             escribir(idx, 16#DEADBEE#);
         end loop;
         escribir(15, 0);
@@ -184,15 +192,16 @@ begin
         assert frec_in = v_frec and paso_ref = v_paso and amp_ref = v_amp
            and k = v_k and kp = v_kp and b_kr = v_b and phi_i = v_phi
            and q_max = v_q and inv_vi = v_inv and freeze = v_frz
+           and retardo = v_ret
             report "una escritura a un indice sin asignar corrompio el banco"
             severity failure;
 
         -- (b) NO deben dejar un commit pendiente. Para que sea detectable el
-        -- shadow tiene que diferir del activo: si alguno de los 10..14 pusiera
+        -- shadow tiene que diferir del activo: si alguno de los 11..14 pusiera
         -- `pendiente`, el pulso_trg de abajo aplicaria ese 424242 sin que nadie
         -- lo pidiera.
         escribir(2, 424242);
-        for idx in 10 to 14 loop
+        for idx in 11 to 14 loop
             escribir(idx, 16#C0FFEE#);
         end loop;
         pulso_trg;
@@ -250,6 +259,31 @@ begin
         assert amp_ref = std_logic_vector(to_signed(1677722, 32))
             report "i_trg aplico el shadow sin que nadie pidiera commit"
             severity failure;
+
+        -- ---- el indice 10 SI escribe: es el retardo de captura ----
+        -- Se agrego con TrgRetardo. El default es 0 (la conducta anterior, que
+        -- cae siempre en el vector nulo del patron SSVM), asi que el PS lo tiene
+        -- que mover para ver vectores activos.
+        assert retardo = "00000000000"
+            report "el default de retardo no es 0" severity failure;
+        escribir(10, 1234);
+        assert retardo = "00000000000"
+            report "retardo se vio SIN commit: el shadow no esta aislando"
+            severity failure;
+        escribir(15, 0);
+        pulso_trg;
+        assert retardo = std_logic_vector(to_unsigned(1234, 11))
+            report "el indice 10 no escribio retardo: se leyo " &
+                   integer'image(to_integer(unsigned(retardo)))
+            severity failure;
+        -- 11 bits: lo que sobra se trunca, que es correcto para un retardo
+        -- acotado a la ventana de 2048 clocks
+        escribir(10, 16#FFFF#);
+        escribir(15, 0);
+        pulso_trg;
+        assert retardo = "11111111111"
+            report "el truncado a 11 bits de retardo no anda" severity failure;
+        report "RETARDO OK: el indice 10 escribe y trunca a 11 bits" severity note;
 
         report "CtrlRegs OK" severity note;
         fin <= true;

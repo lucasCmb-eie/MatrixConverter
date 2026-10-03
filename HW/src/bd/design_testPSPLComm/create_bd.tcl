@@ -82,7 +82,7 @@ open_project $xpr
 set_property source_mgmt_mode All [current_project]
 
 # Fuentes que pueden faltar en proyectos creados antes de este BD.
-foreach nuevo {util/CaptureBank.vhd wrappers/RL_bd.vhd} {
+foreach nuevo {util/CaptureBank.vhd util/TrgRetardo.vhd wrappers/RL_bd.vhd} {
     set base [file tail $nuevo]
     if {[llength [get_files -quiet "*$base"]] == 0} {
         puts "INFO: agrego $base al fileset sources_1"
@@ -103,7 +103,7 @@ update_compile_order -fileset sources_1
 #    son: TClark_wrapper (93) instancia TransformadaClark (2008), y RL_bd (93)
 #    instancia RL_wrapper (2008).
 set archivos_2008 {TransformadaClark.vhd matrixConmut.vhd RL_fase.vhd wrappers/RL_wrapper.vhd util/Declaraciones.vhd util/DienteSierraGen.vhd}
-set archivos_93   {AC_Source.vhd CORDIC_atan2.vhd Modulador.vhd wrappers/TClark_wrapper.vhd wrappers/SVM_wrapper.vhd wrappers/RL_bd.vhd util/CaptureBank.vhd util/sine_generator.vhd util/sine_lut_pkg.vhd util/red_sector.vhd}
+set archivos_93   {AC_Source.vhd CORDIC_atan2.vhd Modulador.vhd wrappers/TClark_wrapper.vhd wrappers/SVM_wrapper.vhd wrappers/RL_bd.vhd util/CaptureBank.vhd util/TrgRetardo.vhd util/sine_generator.vhd util/sine_lut_pkg.vhd util/red_sector.vhd}
 
 foreach f $archivos_2008 {
     set obj [get_files -quiet [list "$hdl_dir/$f"]]
@@ -248,6 +248,7 @@ if {$con_planta} {
     create_bd_cell -type module -reference RL_bd      RL_wrapper_0
 }
 create_bd_cell -type module -reference CaptureBank    CaptureBank_0
+create_bd_cell -type module -reference TrgRetardo     TrgRetardo_0
 
 # --- banco de set points y lazo de corriente ------------------------------
 # ControlLazo entra como module reference DIRECTO: esta escrito en VHDL-93, y
@@ -313,14 +314,14 @@ if {$con_planta} {
     set clk_planta {}
     set rst_planta {}
 }
-connect_bd_net $clk_10m [get_bd_pins AC_Source_0/i_clk] [get_bd_pins TClark_wrapper_0/i_clk] [get_bd_pins CORDIC_atan2_0/clk] [get_bd_pins SVM_wrapper_0/i_clk] {*}$clk_planta [get_bd_pins CaptureBank_0/i_clk]
+connect_bd_net $clk_10m [get_bd_pins AC_Source_0/i_clk] [get_bd_pins TClark_wrapper_0/i_clk] [get_bd_pins CORDIC_atan2_0/clk] [get_bd_pins SVM_wrapper_0/i_clk] {*}$clk_planta [get_bd_pins CaptureBank_0/i_clk] [get_bd_pins TrgRetardo_0/i_clk]
 
 # --- reset del datapath: lo maneja el PS por el bit 0 ---------------------
 # NO se usa peripheral_aresetn del proc_sys_reset: es activo BAJO y todos
 # estos resets son activos ALTOS (sine_generator.vhd:57, CORDIC_atan2.vhd:70,
 # TransformadaClark.vhd:66, RL_fase.vhd:113). Conectarlo dejaria el datapath
 # en reset permanente.
-connect_bd_net [get_bd_pins sl_rst/Dout] [get_bd_pins AC_Source_0/i_rst] [get_bd_pins TClark_wrapper_0/i_rst] [get_bd_pins CORDIC_atan2_0/rst] {*}$rst_planta [get_bd_pins CaptureBank_0/i_rst]
+connect_bd_net [get_bd_pins sl_rst/Dout] [get_bd_pins AC_Source_0/i_rst] [get_bd_pins TClark_wrapper_0/i_rst] [get_bd_pins CORDIC_atan2_0/rst] {*}$rst_planta [get_bd_pins CaptureBank_0/i_rst] [get_bd_pins TrgRetardo_0/i_rst]
 
 # --- resto del control ----------------------------------------------------
 connect_bd_net [get_bd_pins sl_en/Dout]  [get_bd_pins SVM_wrapper_0/i_enable]
@@ -335,7 +336,21 @@ connect_bd_net [get_bd_pins AC_Source_0/o_U] [get_bd_pins TClark_wrapper_0/i_U] 
 connect_bd_net [get_bd_pins AC_Source_0/o_V] [get_bd_pins TClark_wrapper_0/i_V] [get_bd_pins SVM_wrapper_0/i_V] [get_bd_pins CaptureBank_0/i_d01]
 connect_bd_net [get_bd_pins AC_Source_0/o_W] [get_bd_pins TClark_wrapper_0/i_W] [get_bd_pins SVM_wrapper_0/i_W] [get_bd_pins CaptureBank_0/i_d02]
 # El mismo pulso es la batuta del muestreo: dispara el Clark y la captura.
-connect_bd_net [get_bd_pins SVM_wrapper_0/o_trg_calculo] [get_bd_pins TClark_wrapper_0/i_start] [get_bd_pins CaptureBank_0/i_trigger]
+# El disparo de CaptureBank pasa por TrgRetardo, NO va directo.
+#
+# o_trg_calculo cae siempre en la misma ranura del patron SSVM, y medido en la
+# placa el 03/10/2026 esa ranura es un VECTOR NULO: las 300 fotos de la primera
+# corrida dieron 0x124 o 0x049, las tres salidas a la misma entrada, sin una
+# excepcion. Un vector nulo no tiene angulo, asi que no servia para validar el
+# signo de seq0. Con el retardo el punto de muestreo se barre por los 2048
+# clocks del Ts. Ver HW/src/hdl/util/TrgRetardo.vhd.
+#
+# TClark y el commit de CtrlRegs siguen con el disparo SIN retardar: el lazo
+# tiene que calcular en el borde del Ts, no en un punto arbitrario.
+connect_bd_net [get_bd_pins SVM_wrapper_0/o_trg_calculo] \
+    [get_bd_pins TClark_wrapper_0/i_start] [get_bd_pins TrgRetardo_0/i_trg]
+connect_bd_net [get_bd_pins CtrlRegs_0/o_retardo] [get_bd_pins TrgRetardo_0/i_retardo]
+connect_bd_net [get_bd_pins TrgRetardo_0/o_trg]   [get_bd_pins CaptureBank_0/i_trigger]
 
 # --- CORDIC: alfa/beta -> angulo ------------------------------------------
 connect_bd_net [get_bd_pins TClark_wrapper_0/o_alfa]   [get_bd_pins CORDIC_atan2_0/x_in]
@@ -458,7 +473,7 @@ connect_bd_net [get_bd_pins CaptureBank_0/o_listo] [get_bd_pins processing_syste
 # Los pines escalares que son miembros de una interfaz (s_axi_awaddr, etc.)
 # se excluyen del barrido: su conectividad vive en el interface net, no en un
 # net comun, asi que se chequean aparte por la interfaz completa.
-set celdas {AC_Source_0 TClark_wrapper_0 CORDIC_atan2_0 SVM_wrapper_0 CaptureBank_0 CtrlRegs_0 ControlLazo_0 axi_gpio_ctrl axi_gpio_data sl_rst sl_en sl_arm sl_wrstb sl_wridx sl_rstreg cat_q cat_clamp cat_dir Relleno11 Relleno16 Relleno14}
+set celdas {AC_Source_0 TClark_wrapper_0 CORDIC_atan2_0 SVM_wrapper_0 CaptureBank_0 CtrlRegs_0 ControlLazo_0 axi_gpio_ctrl axi_gpio_data sl_rst sl_en sl_arm sl_wrstb sl_wridx sl_rstreg TrgRetardo_0 cat_q cat_clamp cat_dir Relleno11 Relleno16 Relleno14}
 if {!$con_planta} {
     lappend celdas Cero32
 }
@@ -563,6 +578,17 @@ if {$n_dp eq $n_reg} {
     error "CtrlRegs/i_rst y ControlLazo/i_rst comparten el net $n_dp: un reset del datapath borraria los set points"
 }
 puts "CHEQUEO|CtrlRegs tiene reset propio ($n_reg) distinto del datapath ($n_dp)"
+
+# --- el disparo de CaptureBank pasa por TrgRetardo -----------------------
+# Si volviera a colgarse directo de o_trg_calculo, la captura caeria otra vez
+# siempre en la ranura de vector nulo del patron SSVM y no habria angulo que
+# medir. Es un error silencioso: el banco funciona, solo que no dice nada.
+set n_cap [get_bd_nets -of_objects [get_bd_pins CaptureBank_0/i_trigger]]
+set n_svm [get_bd_nets -of_objects [get_bd_pins SVM_wrapper_0/o_trg_calculo]]
+if {$n_cap eq $n_svm} {
+    error "CaptureBank/i_trigger cuelga directo de o_trg_calculo ($n_cap): la captura va a caer siempre en el vector nulo. Tiene que pasar por TrgRetardo."
+}
+puts "CHEQUEO|el disparo de captura pasa por TrgRetardo ($n_cap)"
 
 # Las 19 ranuras cableadas de CaptureBank (la 13 es el estado, no tiene pin).
 foreach n {00 01 02 03 04 05 06 07 08 09 10 11 12 14 15 16 17 18 19} {

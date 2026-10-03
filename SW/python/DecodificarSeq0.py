@@ -43,9 +43,20 @@ def a_signed32(u):
 
 
 def leer(ruta):
-    """Devuelve la lista de fotos, cada una como lista de 20 enteros sin signo."""
+    """Devuelve (fotos, retardos).
+
+    fotos: lista de listas de 20 enteros sin signo.
+    retardos: el retardo de captura de cada foto, o None si el CSV no lo trae.
+
+    Soporta los dos formatos. El de la primera corrida es `n,d0..d19`; el que
+    barre el retardo agrega una columna: `n,ret,d0..d19`. Se distinguen por el
+    encabezado, no por el ancho, asi que una linea cortada no confunde el
+    formato.
+    """
     fotos = []
+    retardos = []
     cab = None
+    con_ret = False
     with open(ruta) as fh:
         for linea in fh:
             linea = linea.strip()
@@ -54,19 +65,27 @@ def leer(ruta):
             partes = linea.split(",")
             if partes[0] == "n":
                 cab = partes
+                con_ret = len(partes) > 1 and partes[1] == "ret"
                 continue
             if cab is None:
-                # Sin encabezado no se puede confiar en el orden de columnas.
-                raise SystemExit(
-                    "El CSV no tiene la linea de encabezado 'n,d0,d1,...'. "
-                    "Capturaste la UART desde el arranque del programa?")
-            if len(partes) != 21:
+                # Todo lo anterior al encabezado se descarta sin chistar: PuTTY
+                # escribe su propio banner ("=~=~= PuTTY log ... =~=~="), que no
+                # empieza con '#', y antes esto abortaba con el archivo real.
+                continue
+            esperado = 22 if con_ret else 21
+            if len(partes) != esperado:
                 continue           # linea cortada por la UART
             try:
-                fotos.append([int(x, 16) for x in partes[1:]])
+                if con_ret:
+                    # el indice y el retardo van en DECIMAL, las ranuras en hex
+                    retardos.append(int(partes[1], 10))
+                    fotos.append([int(x, 16) for x in partes[2:]])
+                else:
+                    retardos.append(None)
+                    fotos.append([int(x, 16) for x in partes[1:]])
             except ValueError:
                 continue           # basura de la UART
-    return fotos
+    return fotos, retardos
 
 
 def desarmar_matriz(palabra):
@@ -91,12 +110,40 @@ def clarke(a, b, c):
     return al, be
 
 
+def fasor(fotos):
+    """Suma de exp(j*(angulo aplicado - al_o)) sobre las fotos con vector activo.
+
+    Devuelve (suma, cuantas). Las fotos con vector nulo no aportan: un vector
+    nulo no tiene angulo. Las filas que no son one-hot se saltan tambien, porque
+    su matriz no describe una conexion fisica valida.
+    """
+    suma = 0j
+    usadas = 0
+    for f in fotos:
+        m = desarmar_matriz(f[12] & 0x1FF)
+        if any(sum(fila) != 1 for fila in m):
+            continue
+        vi = [a_signed32(f[k]) / Q24 for k in (0, 1, 2)]
+        vo = [sum(m[s][e] * vi[e] for e in range(3)) for s in range(3)]
+        al, be = clarke(*vo)
+        if abs(al) < 1e-9 and abs(be) < 1e-9:
+            continue
+        ang = math.atan2(be, al)
+        al_o = ((f[18] >> 9) & 0x7FF) * 2.0 * math.pi / PASOS
+        suma += cmath.exp(1j * (ang - al_o))
+        usadas += 1
+    return suma, usadas
+
+
 def main():
     if len(sys.argv) < 2:
         raise SystemExit(__doc__)
-    fotos = leer(sys.argv[1])
+    fotos, retardos = leer(sys.argv[1])
     if not fotos:
-        raise SystemExit("No hay ninguna foto valida en el CSV.")
+        raise SystemExit(
+            "No hay ninguna foto valida en el CSV. Si el archivo tiene "
+            "contenido, falta la linea de encabezado 'n,d0,d1,...': "
+            "capturaste la UART desde el arranque del programa?")
     print("fotos leidas: %d" % len(fotos))
 
     # --- integridad de la captura -----------------------------------------
@@ -122,28 +169,35 @@ def main():
         print("  la palabra de conmutacion esta mal formada. Revisar primero.")
         return 1
 
-    # --- el discriminador -------------------------------------------------
-    suma = 0j
-    usadas = 0
-    for f in fotos:
-        m = desarmar_matriz(f[12] & 0x1FF)
-        if any(sum(fila) != 1 for fila in m):
-            continue
-        vi = [a_signed32(f[k]) / Q24 for k in (0, 1, 2)]
-        # salida = matriz * entrada
-        vo = [sum(m[s][e] * vi[e] for e in range(3)) for s in range(3)]
-        al, be = clarke(*vo)
-        if abs(al) < 1e-9 and abs(be) < 1e-9:
-            continue                     # vector nulo: no dice nada del angulo
-        ang = math.atan2(be, al)
-        al_o = ((f[18] >> 9) & 0x7FF) * 2.0 * math.pi / PASOS
-        suma += cmath.exp(1j * (ang - al_o))
-        usadas += 1
+    # --- por punto de retardo, si el CSV lo trae --------------------------
+    # Es la tabla que dice DONDE de la ventana de PWM hay vectores activos. La
+    # primera corrida en placa, sin barrido, tenia 0 en todos lados: el disparo
+    # caia siempre en el N/2 con que arranca el patron SSVM.
+    if retardos[0] is not None:
+        print()
+        print("  retardo   fotos  activos   desfase   concentracion")
+        for ret in sorted(set(retardos)):
+            sub = [f for f, r in zip(fotos, retardos) if r == ret]
+            sm, us = fasor(sub)
+            if us == 0:
+                print("  %7d   %5d   %6d        --            --" %
+                      (ret, len(sub), us))
+            else:
+                md = sm / us
+                print("  %7d   %5d   %6d   %+8.2f        %6.3f" %
+                      (ret, len(sub), us, math.degrees(cmath.phase(md)),
+                       abs(md)))
+
+    # --- el discriminador, sobre TODAS las fotos con vector activo --------
+    suma, usadas = fasor(fotos)
 
     if usadas < 20:
         print("\nVEREDICTO: NO SE PUEDE DECIDIR.")
-        print("  Solo %d fotos con un vector activo. Hace falta amp_ref mas" % usadas)
-        print("  grande, o mas capturas.")
+        print("  Solo %d fotos con un vector activo." % usadas)
+        print("  Si la tabla de arriba tiene 0 activos en TODAS las filas, el")
+        print("  barrido del retardo no esta llegando a los vectores activos:")
+        print("  revisar que el indice 10 de CtrlRegs se este commiteando.")
+        print("  Si no hay tabla, el CSV es de una corrida SIN barrido.")
         return 1
 
     media = suma / usadas

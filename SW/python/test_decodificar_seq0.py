@@ -189,6 +189,70 @@ class TestVeredicto(unittest.TestCase):
         self.assertEqual(cod, 1, sal)
         self.assertIn("one-hot", sal)
 
+    def test_formato_con_barrido_de_retardo(self):
+        """El CSV con columna 'ret': se agrupa por retardo y el veredicto sale.
+
+        Imita lo que vuelca el barrido: cuatro puntos de retardo, y SOLO en dos
+        de ellos hay vectores activos -- en los otros dos el disparo cae en el
+        vector nulo, que es justo lo que pasaba sin barrido. El veredicto tiene
+        que salir igual, usando las fotos que sirven.
+        """
+        import math as _m
+        lineas = ["n,ret," + ",".join("d%d" % i for i in range(20))]
+        k = 0
+        for ret in (0, 512, 1024, 1536):
+            nulo = ret in (0, 1024)
+            for j in range(40):
+                th = 2.0 * _m.pi * k / 97.0
+                vi = [0.5178 * _m.cos(th - 2.0 * _m.pi * q / 3.0) for q in range(3)]
+                al_o = int(round(PASOS * (k / 98.0))) % PASOS
+                if nulo:
+                    pal = 0b100100100          # las tres salidas a la entrada U
+                else:
+                    obj = al_o * 2.0 * _m.pi / PASOS
+                    mejor, md = None, 9e9
+                    for p2, _ in ESTADOS:
+                        a = angulo_de(p2, vi)
+                        if a is None:
+                            continue
+                        d = abs(((a - obj + _m.pi) % (2.0 * _m.pi)) - _m.pi)
+                        if d < md:
+                            mejor, md = p2, d
+                    pal = mejor
+                f = [0] * 20
+                f[0], f[1], f[2] = (q824(v) for v in vi)
+                f[12] = pal
+                f[18] = (al_o & 0x7FF) << 9
+                lineas.append("%d,%d," % (k, ret) + ",".join("%x" % x for x in f))
+                k += 1
+        r = self.ruta("barrido.csv")
+        with open(r, "w") as fh:
+            fh.write("\n".join(lineas) + "\n")
+        cod, sal = correr(r)
+        self.assertEqual(cod, 0, sal)
+        self.assertIn("esta BIEN", sal)
+        # la tabla por retardo tiene que aparecer y distinguir los puntos
+        self.assertIn("retardo", sal)
+        self.assertIn("512", sal)
+
+    def test_banner_de_putty_antes_del_encabezado(self):
+        """PuTTY escribe su propio banner, que no empieza con '#'.
+
+        El parser abortaba con "no tiene la linea de encabezado" ante cualquier
+        linea previa que no fuera un comentario. Lo encontro el archivo real.
+        """
+        r = self.ruta("putty.csv")
+        generar(r, invertido=False)
+        with open(r) as fh:
+            cuerpo = fh.read()
+        with open(r, "w") as fh:
+            fh.write("=~=~=~=~=~= PuTTY log 2026.10.03 19:21:28 =~=~=~=~=~=\n")
+            fh.write("\n\n")
+            fh.write(cuerpo)
+        cod, sal = correr(r)
+        self.assertEqual(cod, 0, sal)
+        self.assertIn("esta BIEN", sal)
+
     def test_sin_encabezado_aborta_claro(self):
         r = self.ruta("sin_cab.csv")
         with open(r, "w") as fh:

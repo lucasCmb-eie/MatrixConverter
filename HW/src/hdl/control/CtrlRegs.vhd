@@ -46,6 +46,13 @@ entity CtrlRegs is
         o_q_max    : out std_logic_vector(31 downto 0);  --! idx 7, Q8.24
         o_inv_vi   : out std_logic_vector(31 downto 0);  --! idx 8, Q8.24
         o_freeze   : out std_logic;                      --! idx 9
+        --! idx 10: clocks de retardo del disparo de CaptureBank dentro de la
+        --! ventana de PWM. Ver HW/src/hdl/util/TrgRetardo.vhd. El valor 0
+        --! reproduce la conducta anterior a TrgRetardo, que cae SIEMPRE en la
+        --! ranura de vector nulo del patron SSVM: para ver vectores activos hay
+        --! que barrerlo. El rango util es 0..2046 (en 2047 el disparo cae un Ts
+        --! completo despues y choca con el siguiente).
+        o_retardo  : out std_logic_vector(10 downto 0);
         o_clamp    : out std_logic_vector(15 downto 0)   --! sticky, por registro
     );
 end entity CtrlRegs;
@@ -77,6 +84,7 @@ architecture rtl of CtrlRegs is
         7  => x"00DDB3D7",   -- q_max    : sqrt(3)/2 en Q8.24
         8  => x"01EE54BB",   -- inv_vi   : 1/0,5179 en Q8.24 = 32396475
         9  => x"00000001",   -- freeze   : anti-windup activo
+        10 => x"00000000",   -- retardo  : 0 = la conducta de siempre (vector nulo)
         others => x"00000000"
     );
 
@@ -100,6 +108,7 @@ begin
     o_q_max    <= activo(7);
     o_inv_vi   <= activo(8);
     o_freeze   <= activo(9)(0);
+    o_retardo  <= activo(10)(10 downto 0);
     o_clamp    <= clamp;
 
     proceso : process (i_clk)
@@ -146,9 +155,9 @@ begin
                             shadow(7) <= i_wr_data;
                         end if;
 
-                    -- Los indices 10 a 14 no estan asignados: una escritura
+                    -- Los indices 11 a 14 no estan asignados: una escritura
                     -- ahi no toca nada.
-                    elsif idx <= 9 then
+                    elsif idx <= 10 then
                         shadow(idx) <= i_wr_data;
                     end if;
                 end if;

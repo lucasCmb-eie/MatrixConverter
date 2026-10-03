@@ -72,6 +72,7 @@
 #define SP_Q_MAX     7u
 #define SP_INV_VI    8u
 #define SP_FREEZE    9u
+#define SP_RETARDO  10u
 #define SP_COMMIT   15u
 
 /* ------------------------------------------------------- UART, a mano
@@ -230,12 +231,33 @@ static void con_dec(u32 v)
 /* Cuantas fotos. Las capturas consecutivas caen a ~1 Ts una de otra (el
  * armado espera el proximo o_trg_calculo), y 1 Ts son 3,686 grados a 50 Hz,
  * asi que ~98 capturas cubren un periodo de salida. 300 da unos tres. */
-#define N_CAP       300u
+/*
+ * BARRIDO DEL RETARDO DE CAPTURA.
+ *
+ * La primera corrida en la placa (03/10/2026) devolvio 300 fotos y las 300
+ * cayeron en un VECTOR NULO: 0x124 o 0x049, las tres salidas a la misma
+ * entrada. La causa es que o_trg_calculo cae siempre en la misma ranura del
+ * patron SSVM, y esa ranura es el N/2 con que el patron arranca.
+ *
+ * Asi que ahora se BARRE el punto de muestreo por la ventana de PWM, moviendo
+ * el indice 10 de CtrlRegs. N_RET puntos espaciados PASO_RET clocks cubren los
+ * 2048 del Ts, y en cada punto se toman N_POR_RET fotos para promediar sobre el
+ * angulo de salida.
+ *
+ * El rango util es 0..2046: en 2047 el disparo cae un Ts completo despues y
+ * choca con el siguiente.
+ */
+#define N_RET       32u              /* puntos del barrido                   */
+#define PASO_RET    64u              /* 32 * 64 = 2048, la ventana completa   */
+#define N_POR_RET   8u               /* fotos por punto                       */
+#define N_CAP       (N_RET * N_POR_RET)
 
 /* Se captura TODO a RAM y se vuelca al final. Imprimir intercalado no sirve:
  * una linea de ~180 caracteres a 115200 baudios tarda ~15 ms, o sea 73 Ts, y
  * el barrido quedaria aliaseado a 270 grados por muestra. */
 static u32 fotos[N_CAP][N_RANURAS];
+/* el retardo con que se tomo cada foto, para que el decodificador agrupe */
+static u32 rets[N_CAP];
 
 /* Copia por software de ch1. Es un UNICO registro de 32 bits, asi que todo
  * cambio tiene que ser read-modify-write: escribir un bit sin preservar los
@@ -333,6 +355,8 @@ int main(void)
 {
     u32 n;
     u32 i;
+    u32 r;
+    u32 k;
     int fallo;
 
     /*
@@ -431,12 +455,32 @@ int main(void)
         return 1;
     }
 
-    for (n = 0u; n < N_CAP; n++) {
-        if (capturar(fotos[n]) != 0) {
-            con_str("# ERROR: se corto el disparo en la captura ");
-            con_dec(n);
-            con_str("\r\n");
-            return 1;
+    /*
+     * El barrido. Por cada punto de retardo se escribe el indice 10, se
+     * commitea, y se toman N_POR_RET fotos.
+     *
+     * El commit cae en el flanco de o_trg_calculo, asi que sp_commit() espera
+     * un Ts: sin eso las primeras fotos del punto saldrian con el retardo
+     * ANTERIOR y el barrido quedaria corrido.
+     */
+    n = 0u;
+    for (r = 0u; r < N_RET; r++) {
+        u32 ret = r * PASO_RET;
+
+        sp_escribir(SP_RETARDO, ret);
+        sp_commit();
+
+        for (k = 0u; k < N_POR_RET; k++) {
+            if (capturar(fotos[n]) != 0) {
+                con_str("# ERROR: se corto el disparo con retardo ");
+                con_dec(ret);
+                con_str(", captura ");
+                con_dec(n);
+                con_str("\r\n");
+                return 1;
+            }
+            rets[n] = ret;
+            n++;
         }
     }
 
@@ -446,7 +490,9 @@ int main(void)
     con_str("#          13 ESTADO  14,15 ref_alfa,ref_beta  16,17 v_alfa,v_beta\r\n");
     con_str("#          18 q|al_o|sat  19 x1_alfa(32 b bajos de Q8.40)\r\n");
     con_str("# ranura 18: bits 8-0 = q, bits 19-9 = al_o, bit 20 = sat\r\n");
-    con_str("n");
+    con_str("# la columna 'ret' es el retardo de captura en clocks:\r\n");
+    con_str("# el decodificador agrupa por ella.\r\n");
+    con_str("n,ret");
     for (i = 0u; i < N_RANURAS; i++) {
         con_str(",d");
         con_dec(i);
@@ -455,6 +501,8 @@ int main(void)
 
     for (n = 0u; n < N_CAP; n++) {
         con_dec(n);
+        con_str(",");
+        con_dec(rets[n]);
         for (i = 0u; i < N_RANURAS; i++) {
             con_str(",");
             con_hex(fotos[n][i]);
@@ -463,6 +511,10 @@ int main(void)
     }
     con_str("# fin, ");
     con_dec(N_CAP);
-    con_str(" capturas\r\n");
+    con_str(" capturas en ");
+    con_dec(N_RET);
+    con_str(" puntos de retardo, paso ");
+    con_dec(PASO_RET);
+    con_str(" clocks\r\n");
     return 0;
 }
