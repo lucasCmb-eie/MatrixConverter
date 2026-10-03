@@ -75,6 +75,37 @@
 #define SP_FREEZE    9u
 #define SP_COMMIT   15u
 
+/* ------------------------------------------------------- UART, a mano
+ *
+ * La Blackboard expone UN solo puente USB-serie (un unico COM aparece al
+ * conectarla), y de los dos UART del PS -- UART0 en MIO 14..15, UART1 en
+ * MIO 48..49, los dos habilitados a 115200 en el PS7 -- solo uno llega a el.
+ * Cual es cableado de la placa y no se puede deducir del diseño.
+ *
+ * Asi que el banner sale por LOS DOS, escribiendo directo al FIFO de cada uno
+ * en vez de pasar por stdout. El que este conectado lo muestra y la pregunta
+ * se contesta sola, sin tener que probar la BSP dos veces.
+ *
+ * Es seguro: los UART son perifericos del PS, existen siempre y no dependen de
+ * que la PL este programada, asi que esto NO se puede colgar.
+ */
+#define UART0_BASE      0xE0000000u
+#define UART1_BASE      0xE0001000u
+#define UART_SR         0x2Cu            /* Channel Status Register */
+#define UART_FIFO       0x30u            /* TX/RX FIFO              */
+#define UART_SR_TXFULL  (1u << 4)
+
+static void uart_puts(u32 base, const char *s)
+{
+    while (*s != '\0') {
+        while ((Xil_In32(base + UART_SR) & UART_SR_TXFULL) != 0u) {
+            /* espera lugar en el FIFO */
+        }
+        Xil_Out32(base + UART_FIFO, (u32)(unsigned char)(*s));
+        s++;
+    }
+}
+
 /* ---------------------------------------------------------------- CaptureBank */
 #define N_RANURAS   20u
 #define IDX_ESTADO  13u           /* devuelve el estado, no un registro      */
@@ -215,12 +246,49 @@ int main(void)
      * reset (inicializa shadow y activo con sus defaults en la declaracion),
      * asi que acepta escrituras de entrada. Si estuviera en 1 las ignoraria.
      */
+    /*
+     * LO PRIMERO ES HABLAR, antes de tocar la PL.
+     *
+     * Si la PL no esta programada no hay slave AXI en 0x4120_0000, el
+     * interconnect nunca contesta y el ARM se CUELGA en la primera escritura.
+     * El sintoma es cero salida por la UART, que es un silencio ambiguo: no
+     * distingue "no corrio", "UART equivocada" y "PL sin programar".
+     *
+     * Con el banner primero el silencio se vuelve diagnostico:
+     *   no se ve NADA              -> no corrio, o es la otra UART
+     *   se ve el banner y se cuelga -> la PL no esta programada
+     */
+    /* Por los dos UART, para que se vea cual es el que llega al USB. La linea
+     * que aparezca dice de cual se trata; si aparecen las dos, hay dos puentes. */
+    uart_puts(UART0_BASE,
+              "\r\n\r\n# ---- valida_seq0 ---- salida por UART0 (MIO 14..15)\r\n");
+    uart_puts(UART1_BASE,
+              "\r\n\r\n# ---- valida_seq0 ---- salida por UART1 (MIO 48..49)\r\n");
+
+    /* Y a partir de aca, por stdout (que la BSP apunta a uno de los dos). Si
+     * ves la linea de arriba pero NO esta, stdout esta en el UART equivocado:
+     * cambiar standalone_stdout en la BSP al que si aparecio. */
+    xil_printf("# Esta linea sale por stdout. Si falta, stdout esta en el otro UART.\r\n");
+    xil_printf("# Ahora toco la PL en 0x%x. Si se cuelga aca, la PL NO esta programada.\r\n",
+               (unsigned int)CTRL_BASE);
+
     ctrl = B_RST | B_EN;
     ctrl_aplicar();
     Xil_Out32(CTRL_BASE + GPIO2_DATA, 0u);
     Xil_Out32(DATA_BASE + GPIO2_DATA, 0u);
 
-    xil_printf("\r\n# valida_seq0: captura la palabra de conmutacion contra el al_o comandado\r\n");
+    xil_printf("# La PL contesta.\r\n");
+
+    /* Eco de ch2 (wr_data), que no tiene efecto porque wr_stb esta en 0. Es
+     * informativo y NO aborta: que un canal all-outputs devuelva lo escrito
+     * depende de la version del AXI GPIO, asi que un eco distinto no prueba
+     * que algo este mal. Si vuelve 0 o 0xFFFFFFFF, sospechar de la PL. */
+    Xil_Out32(CTRL_BASE + GPIO2_DATA, 0x5A5A5A5Au);
+    xil_printf("# eco de ch2: escrito 5a5a5a5a, leido %x\r\n",
+               (unsigned int)Xil_In32(CTRL_BASE + GPIO2_DATA));
+    Xil_Out32(CTRL_BASE + GPIO2_DATA, 0u);
+
+    xil_printf("# valida_seq0: captura la palabra de conmutacion contra el al_o comandado\r\n");
 
     sp_escribir(SP_FREC_IN,  V_FREC_IN);
     sp_escribir(SP_PASO_REF, V_PASO_REF);
