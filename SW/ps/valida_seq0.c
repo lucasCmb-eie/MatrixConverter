@@ -95,16 +95,51 @@
 #define UART_FIFO       0x30u            /* TX/RX FIFO              */
 #define UART_SR_TXFULL  (1u << 4)
 
+/*
+ * MEDIDO en la Blackboard el 03/10/2026: el banner por UART1 (MIO 48..49)
+ * aparece en la terminal y el de UART0 (MIO 14..15) no. O sea que el puente
+ * USB-serie esta en UART1, y standalone_stdout de la BSP tiene que valer
+ * ps7_uart_1.
+ *
+ * Es cableado de placa: al migrar a otra hay que volver a mirar cual de los dos
+ * banners sale.
+ */
+
+static void uart_putc(u32 base, char c)
+{
+    while ((Xil_In32(base + UART_SR) & UART_SR_TXFULL) != 0u) {
+        /* espera lugar en el FIFO */
+    }
+    Xil_Out32(base + UART_FIFO, (u32)(unsigned char)c);
+}
+
 static void uart_puts(u32 base, const char *s)
 {
     while (*s != '\0') {
-        while ((Xil_In32(base + UART_SR) & UART_SR_TXFULL) != 0u) {
-            /* espera lugar en el FIFO */
-        }
-        Xil_Out32(base + UART_FIFO, (u32)(unsigned char)(*s));
+        uart_putc(base, *s);
         s++;
     }
 }
+
+/*
+ * NO se puede retargetear stdout definiendo outbyte() aca. Se intento y el
+ * enlace falla con
+ *
+ *   multiple definition of `outbyte'; valida_seq0.c.obj: first defined here
+ *
+ * El truco de ganarle a la libreria definiendo el simbolo en la aplicacion solo
+ * funciona si el miembro de la libreria NO se incluye por otra razon, y el
+ * objeto de la BSP que trae outbyte entra igual porque se necesita otro simbolo
+ * del mismo archivo.
+ *
+ * Asi que stdout se dirige donde corresponde: el parametro standalone_stdout
+ * de la BSP, puesto en ps7_uart_1 (el UART que esta cableado al USB en la
+ * Blackboard).
+ *
+ * OJO al regenerar la plataforma: SW/vitis/ no esta versionado, asi que ese
+ * setting se PIERDE y xil_printf vuelve a hablarle a un UART desconectado. El
+ * sintoma es ver el banner de abajo y nada mas. Por eso el banner existe.
+ */
 
 /* ---------------------------------------------------------------- CaptureBank */
 #define N_RANURAS   20u
@@ -265,10 +300,10 @@ int main(void)
     uart_puts(UART1_BASE,
               "\r\n\r\n# ---- valida_seq0 ---- salida por UART1 (MIO 48..49)\r\n");
 
-    /* Y a partir de aca, por stdout (que la BSP apunta a uno de los dos). Si
-     * ves la linea de arriba pero NO esta, stdout esta en el UART equivocado:
-     * cambiar standalone_stdout en la BSP al que si aparecio. */
-    xil_printf("# Esta linea sale por stdout. Si falta, stdout esta en el otro UART.\r\n");
+    /* Y a partir de aca por stdout. Si ves el banner de arriba pero NO esta
+     * linea, standalone_stdout de la BSP apunta al UART desconectado: ponerlo
+     * en el que si aparecio arriba. */
+    xil_printf("# stdout anda: standalone_stdout apunta al UART cableado.\r\n");
     xil_printf("# Ahora toco la PL en 0x%x. Si se cuelga aca, la PL NO esta programada.\r\n",
                (unsigned int)CTRL_BASE);
 
