@@ -1,4 +1,4 @@
-/*
+﻿/*
  * valida_seq0.c -- aplicacion minima del PS para validar el signo de seq0.
  *
  * QUE VALIDA Y POR QUE EXISTE
@@ -33,7 +33,6 @@
  */
 
 #include "xil_io.h"
-#include "xil_printf.h"
 #include "sleep.h"
 
 /* ------------------------------------------------------------------ mapa AXI
@@ -80,7 +79,7 @@
  * La Blackboard expone UN solo puente USB-serie (un unico COM aparece al
  * conectarla), y de los dos UART del PS -- UART0 en MIO 14..15, UART1 en
  * MIO 48..49, los dos habilitados a 115200 en el PS7 -- solo uno llega a el.
- * Cual es cableado de la placa y no se puede deducir del diseño.
+ * Cual es cableado de la placa y no se puede deducir del diseÃ±o.
  *
  * Asi que el banner sale por LOS DOS, escribiendo directo al FIFO de cada uno
  * en vez de pasar por stdout. El que este conectado lo muestra y la pregunta
@@ -122,6 +121,70 @@ static void uart_puts(u32 base, const char *s)
 }
 
 /*
+ * ------------------------------------------------------------------ consola
+ *
+ * Toda la salida va por UART_CONSOLA con estas tres funciones, NO por
+ * xil_printf. Formatear dos tipos de entero son veinte lineas y a cambio el
+ * programa queda INDEPENDIENTE de la BSP.
+ *
+ * Por que importa: stdout de la BSP standalone sale de standalone_stdin, que a
+ * su vez sale de STDIN_INSTANCE, que un archivo GENERADO fija tomando el
+ * PRIMERO de UARTPS_NUM_DRIVER_INSTANCES -- o sea ps7_uart_0, que en esta placa
+ * no esta cableado. Cambiarlo requiere tocar los dos parametros Y recompilar la
+ * plataforma, y encima se pierde cada vez que alguien la regenera desde el
+ * .xsa, porque SW/vitis/ no esta versionado. Un programa cuyo unico proposito
+ * es diagnosticar no puede depender de eso.
+ *
+ * UART_CONSOLA es la unica linea a cambiar si la placa cambia. El banner doble
+ * de main() dice cual es.
+ */
+#define UART_CONSOLA    UART1_BASE
+
+static void con_str(const char *s)
+{
+    uart_puts(UART_CONSOLA, s);
+}
+
+/* hex sin ceros a la izquierda, como el %x de printf */
+static void con_hex(u32 v)
+{
+    char buf[9];
+    int i = 8;
+
+    buf[8] = '\0';
+    if (v == 0u) {
+        con_str("0");
+        return;
+    }
+    while (v != 0u) {
+        u32 d = v & 0xFu;
+        i--;
+        buf[i] = (char)((d < 10u) ? ('0' + (int)d) : ('a' + (int)(d - 10u)));
+        v >>= 4;
+    }
+    con_str(&buf[i]);
+}
+
+/* decimal sin signo. u32 maximo = 4294967295, diez digitos */
+static void con_dec(u32 v)
+{
+    char buf[11];
+    int i = 10;
+
+    buf[10] = '\0';
+    if (v == 0u) {
+        con_str("0");
+        return;
+    }
+    while (v != 0u) {
+        i--;
+        buf[i] = (char)('0' + (int)(v % 10u));
+        v /= 10u;
+    }
+    con_str(&buf[i]);
+}
+
+/*
  * NO se puede retargetear stdout definiendo outbyte() aca. Se intento y el
  * enlace falla con
  *
@@ -132,13 +195,17 @@ static void uart_puts(u32 base, const char *s)
  * objeto de la BSP que trae outbyte entra igual porque se necesita otro simbolo
  * del mismo archivo.
  *
- * Asi que stdout se dirige donde corresponde: el parametro standalone_stdout
- * de la BSP, puesto en ps7_uart_1 (el UART que esta cableado al USB en la
- * Blackboard).
+ * Y pelear con el parametro de la BSP tampoco sirve. standalone_stdout se
+ * FUERZA a seguir a standalone_stdin (xilstandalone.cmake:188), y las dos salen
+ * de STDIN_INSTANCE, que un archivo GENERADO fija tomando el PRIMERO de
+ * UARTPS_NUM_DRIVER_INSTANCES = "ps7_uart_0;ps7_uart_1". O sea: el default es
+ * el UART que NO esta cableado, cambiarlo pide tocar los dos parametros Y
+ * recompilar la plataforma, y encima se pierde cada vez que alguien la
+ * regenera, porque SW/vitis/ no esta versionado por decision.
  *
- * OJO al regenerar la plataforma: SW/vitis/ no esta versionado, asi que ese
- * setting se PIERDE y xil_printf vuelve a hablarle a un UART desconectado. El
- * sintoma es ver el banner de abajo y nada mas. Por eso el banner existe.
+ * Por eso este programa NO usa stdout: toda su salida va por con_str/con_hex/
+ * con_dec sobre UART_CONSOLA. Queda independiente de la BSP, que es lo que
+ * corresponde para un programa cuyo unico proposito es diagnosticar.
  */
 
 /* ---------------------------------------------------------------- CaptureBank */
@@ -303,27 +370,29 @@ int main(void)
     /* Y a partir de aca por stdout. Si ves el banner de arriba pero NO esta
      * linea, standalone_stdout de la BSP apunta al UART desconectado: ponerlo
      * en el que si aparecio arriba. */
-    xil_printf("# stdout anda: standalone_stdout apunta al UART cableado.\r\n");
-    xil_printf("# Ahora toco la PL en 0x%x. Si se cuelga aca, la PL NO esta programada.\r\n",
-               (unsigned int)CTRL_BASE);
+    con_str("# consola por UART_CONSOLA, sin pasar por la BSP.\r\n");
+    con_str("# Ahora toco la PL en 0x");
+    con_hex(CTRL_BASE);
+    con_str(". Si se cuelga aca, la PL NO esta programada.\r\n");
 
     ctrl = B_RST | B_EN;
     ctrl_aplicar();
     Xil_Out32(CTRL_BASE + GPIO2_DATA, 0u);
     Xil_Out32(DATA_BASE + GPIO2_DATA, 0u);
 
-    xil_printf("# La PL contesta.\r\n");
+    con_str("# La PL contesta.\r\n");
 
     /* Eco de ch2 (wr_data), que no tiene efecto porque wr_stb esta en 0. Es
      * informativo y NO aborta: que un canal all-outputs devuelva lo escrito
      * depende de la version del AXI GPIO, asi que un eco distinto no prueba
      * que algo este mal. Si vuelve 0 o 0xFFFFFFFF, sospechar de la PL. */
     Xil_Out32(CTRL_BASE + GPIO2_DATA, 0x5A5A5A5Au);
-    xil_printf("# eco de ch2: escrito 5a5a5a5a, leido %x\r\n",
-               (unsigned int)Xil_In32(CTRL_BASE + GPIO2_DATA));
+    con_str("# eco de ch2: escrito 5a5a5a5a, leido ");
+    con_hex(Xil_In32(CTRL_BASE + GPIO2_DATA));
+    con_str("\r\n");
     Xil_Out32(CTRL_BASE + GPIO2_DATA, 0u);
 
-    xil_printf("# valida_seq0: captura la palabra de conmutacion contra el al_o comandado\r\n");
+    con_str("# valida_seq0: captura la palabra de conmutacion contra el al_o comandado\r\n");
 
     sp_escribir(SP_FREC_IN,  V_FREC_IN);
     sp_escribir(SP_PASO_REF, V_PASO_REF);
@@ -350,44 +419,50 @@ int main(void)
      * de una sintonia distinta de la que se pidio. */
     fallo = capturar(fotos[0]);
     if (fallo != 0) {
-        xil_printf("# ERROR: no llego ningun o_trg_calculo.\r\n");
-        xil_printf("# El modulador esta habilitado? bit1 de ch1.\r\n");
+        con_str("# ERROR: no llego ningun o_trg_calculo.\r\n");
+        con_str("# El modulador esta habilitado? bit1 de ch1.\r\n");
         return 1;
     }
     if ((fotos[0][3] & 0xFFFFu) != 0u) {
-        xil_printf("# ERROR: clamp = %x -- CtrlRegs rechazo un set point.\r\n",
-                   (unsigned int)(fotos[0][3] & 0xFFFFu));
-        xil_printf("# Los bits dicen que indice: el 3 es k, el 7 es q_max.\r\n");
+        con_str("# ERROR: clamp = ");
+        con_hex(fotos[0][3] & 0xFFFFu);
+        con_str(" -- CtrlRegs rechazo un set point.\r\n");
+        con_str("# Los bits dicen que indice: el 3 es k, el 7 es q_max.\r\n");
         return 1;
     }
 
     for (n = 0u; n < N_CAP; n++) {
         if (capturar(fotos[n]) != 0) {
-            xil_printf("# ERROR: se corto el disparo en la captura %d\r\n",
-                       (int)n);
+            con_str("# ERROR: se corto el disparo en la captura ");
+            con_dec(n);
+            con_str("\r\n");
             return 1;
         }
     }
 
     /* Volcado. Todo en hex crudo: el que decodifica es DecodificarSeq0.py. */
-    xil_printf("# ranuras: 00-02 Vi(u,v,w)  03 clamp  04,05,11 Vo(u,v,w)\r\n");
-    xil_printf("#          06-08 Io(u,v,w)  09,10 i_alfa,i_beta  12 direcciones\r\n");
-    xil_printf("#          13 ESTADO  14,15 ref_alfa,ref_beta  16,17 v_alfa,v_beta\r\n");
-    xil_printf("#          18 q|al_o|sat  19 x1_alfa(32 b bajos de Q8.40)\r\n");
-    xil_printf("# ranura 18: bits 8-0 = q, bits 19-9 = al_o, bit 20 = sat\r\n");
-    xil_printf("n");
+    con_str("# ranuras: 00-02 Vi(u,v,w)  03 clamp  04,05,11 Vo(u,v,w)\r\n");
+    con_str("#          06-08 Io(u,v,w)  09,10 i_alfa,i_beta  12 direcciones\r\n");
+    con_str("#          13 ESTADO  14,15 ref_alfa,ref_beta  16,17 v_alfa,v_beta\r\n");
+    con_str("#          18 q|al_o|sat  19 x1_alfa(32 b bajos de Q8.40)\r\n");
+    con_str("# ranura 18: bits 8-0 = q, bits 19-9 = al_o, bit 20 = sat\r\n");
+    con_str("n");
     for (i = 0u; i < N_RANURAS; i++) {
-        xil_printf(",d%d", (int)i);
+        con_str(",d");
+        con_dec(i);
     }
-    xil_printf("\r\n");
+    con_str("\r\n");
 
     for (n = 0u; n < N_CAP; n++) {
-        xil_printf("%d", (int)n);
+        con_dec(n);
         for (i = 0u; i < N_RANURAS; i++) {
-            xil_printf(",%x", (unsigned int)fotos[n][i]);
+            con_str(",");
+            con_hex(fotos[n][i]);
         }
-        xil_printf("\r\n");
+        con_str("\r\n");
     }
-    xil_printf("# fin, %d capturas\r\n", (int)N_CAP);
+    con_str("# fin, ");
+    con_dec(N_CAP);
+    con_str(" capturas\r\n");
     return 0;
 }
