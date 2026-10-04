@@ -255,5 +255,63 @@ class TestEspejoSetPoints(unittest.TestCase):
             exacto = math.floor(2 * math.sin(math.pi * f_mhz / 1000 * ts) * Q24 + 0.5)
             self.assertEqual(VM.espejo_k(f_mhz), exacto, f_mhz)
 
+import visor_sim
+
+
+def leer_tramas(placa, cuantas):
+    p = VT.Parser()
+    out = []
+    while len(out) < cuantas:
+        tr, _ = p.alimentar(placa.read(4096))
+        out += tr
+    return out
+
+
+class TestPlacaSimulada(unittest.TestCase):
+
+    def test_arranque(self):
+        t, = leer_tramas(visor_sim.PlacaSimulada(tiempo_real=False), 1)
+        m = VM.metricas(t)
+        self.assertEqual(t.f_mhz, 50000)
+        self.assertEqual(t.amp_ref, 1006633)
+        self.assertAlmostEqual(m.amp, 0.06, delta=0.001)
+        self.assertAlmostEqual(m.freq, 50.0, delta=0.1)
+
+    def test_escalon_en_la_muestra_64(self):
+        placa = visor_sim.PlacaSimulada(tiempo_real=False)
+        leer_tramas(placa, 1)
+        placa.write(VT.comando_amp(0.10))
+        t, = leer_tramas(placa, 1)
+        self.assertTrue(t.flags & VT.FL_ESCALON)
+        self.assertEqual(t.muestra_escalon, 64)
+        self.assertEqual(t.amp_ref_prev, 1006633)
+        self.assertEqual(t.amp_ref, VM.espejo_amp_q824(100000))
+        ref = np.hypot(VM.a_pu(t.ref_alfa), VM.a_pu(t.ref_beta))
+        self.assertAlmostEqual(ref[63], 0.06, delta=1e-6)
+        self.assertAlmostEqual(ref[64], 0.10, delta=1e-6)
+        self.assertAlmostEqual(VM.metricas(t).amp, 0.10, delta=0.002)
+        t2, = leer_tramas(placa, 1)
+        self.assertFalse(t2.flags & VT.FL_ESCALON)
+
+    def test_cambio_de_frecuencia(self):
+        placa = visor_sim.PlacaSimulada(tiempo_real=False)
+        placa.write(VT.comando_frec(40))
+        leer_tramas(placa, 1)
+        t, = leer_tramas(placa, 1)
+        self.assertEqual(t.f_mhz, 40000)
+        self.assertAlmostEqual(VM.metricas(t).freq, 40.0, delta=0.1)
+
+    def test_comando_invalido_levanta_el_flag_una_vez(self):
+        placa = visor_sim.PlacaSimulada(tiempo_real=False)
+        placa.write(b"A 0.5\n")
+        t1, t2 = leer_tramas(placa, 2)
+        self.assertTrue(t1.flags & VT.FL_RECHAZO)
+        self.assertFalse(t2.flags & VT.FL_RECHAZO)
+        self.assertEqual(t1.amp_ref, 1006633)
+
+    def test_contador_incrementa(self):
+        tr = leer_tramas(visor_sim.PlacaSimulada(tiempo_real=False), 3)
+        self.assertEqual([t.contador for t in tr], [0, 1, 2])
+
 if __name__ == "__main__":
     unittest.main()
