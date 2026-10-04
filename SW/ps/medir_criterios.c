@@ -20,7 +20,7 @@
  *   3. python SW/python/AnalizarCriterio5.py captura.csv     (o Criterio6)
  */
 
-#define MODO  6
+#define MODO  7
 
 #include "pspl.h"
 
@@ -93,8 +93,43 @@ static const u32 RANURAS[] = { 9u, 10u };
 static const u32 RANURAS[] = { 19u, 18u, 9u };
 #define ETIQUETAS    "x1_alfa,q_al_o_sat,i_alfa"
 
+#elif MODO == 7
+/*
+ * EFECTO DEL ESTADO GUARDADO EN EL TRANSITORIO.
+ *
+ * El criterio 6 dejo abierta una pregunta: el resonante no decae -- det(A) = 1
+ * exacto, oscilador sin perdidas -- asi que cuando llega una referencia arranca
+ * con la energia que agarro en el arranque. Importa eso?
+ *
+ * EL DISE~O DEL EXPERIMENTO. No hace falta resetear nada ni comparar contra una
+ * condicion artificial: la amplitud guardada YA VARIA sola entre corridas,
+ * medido factor 2,08 (7,79e9 contra 1,62e10 LSB). Esa variacion es la variable
+ * independiente, gratis.
+ *
+ *   si el estado guardado afecta el transitorio -> el sobrepico varia con el
+ *   si no lo afecta -> el sobrepico sale reproducible aunque x1 varie al doble
+ *
+ * Se capturan N_PRE muestras con amp_ref = 0 (para medir cuanta energia hay) y
+ * despues N_POST con el escalon aplicado. Corriendo el programa varias veces
+ * salen pares (energia previa, sobrepico) que se correlacionan.
+ *
+ * OJO con el commit: aca va SIN el usleep de sp_commit(), porque una espera de
+ * 2 ms en medio de la captura dejaria un hueco de 10 Ts y rompería la cadencia
+ * uniforme. Las escrituras son unas pocas transacciones AXI, muy por debajo del
+ * Ts, asi que entran entre dos capturas sin molestar.
+ */
+#define V_FREC_IN    21475
+#define V_PASO_REF   43980800
+#define V_K          1079257
+#define V_AMP_REF    0            /* arranca en cero; el escalon va en el medio */
+#define N_PRE        512u         /* 0,105 s: cinco periodos de 50 Hz           */
+#define N_POST       1536u        /* 0,315 s: cubre los 60 ms de establecimiento */
+#define N_MUESTRAS   (N_PRE + N_POST)
+static const u32 RANURAS[] = { 19u, 9u, 14u, 18u };
+#define ETIQUETAS    "x1_alfa,i_alfa,ref_alfa,q_al_o_sat"
+
 #else
-#error "MODO tiene que ser 5 o 6"
+#error "MODO tiene que ser 5, 6 o 7"
 #endif
 
 #define N_RAN  (sizeof(RANURAS) / sizeof(RANURAS[0]))
@@ -173,6 +208,15 @@ int main(void)
      * muy por debajo del Ts.
      */
     for (n = 0u; n < N_MUESTRAS; n++) {
+#if MODO == 7
+        /* El escalon, justo en N_PRE. Sin usleep: el commit cae solo en el
+         * proximo flanco de o_trg_calculo, que es el mismo que dispara la
+         * captura siguiente. */
+        if (n == N_PRE) {
+            sp_escribir(SP_AMP_REF, V_AMP_06);
+            sp_escribir(SP_COMMIT, 0u);
+        }
+#endif
         if (capturar_sel(datos[n], RANURAS, N_RAN) != 0) {
             con_str("# ERROR: se corto el disparo en la muestra ");
             con_dec(n);
@@ -183,6 +227,11 @@ int main(void)
 
     /* Volcado. Hex crudo, el que interpreta es el script de Python. */
     con_str("# fs = 4882.8125 Hz (una muestra por Ts de 204,8 us)\r\n");
+#if MODO == 7
+    con_str("# escalon de amp_ref 0 -> 0,06 pu en la muestra ");
+    con_dec(N_PRE);
+    con_str("\r\n");
+#endif
     con_str("n,");
     con_str(ETIQUETAS);
     con_str("\r\n");
