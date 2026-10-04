@@ -470,5 +470,44 @@ class TestCongelarEscalon(unittest.TestCase):
         self.vista.procesar([trama_senoidal(contador=3)])
         self.assertEqual(self.vista.mostrada.contador, 2)
 
+class TestDesfase(unittest.TestCase):
+    """Desfase de la corriente respecto de su referencia, en grados.
+    Positivo = la corriente ADELANTA a la referencia."""
+
+    def trama_desfasada(self, grados, amp=0.06, f=50.0, **extra):
+        t = trama_senoidal(amp=amp, f=f, **extra)
+        d = -math.radians(grados)       # la referencia rota hacia atras
+        ra, rb = [], []
+        for a, b in zip(t.ref_alfa, t.ref_beta):
+            ra.append(int(round(a * math.cos(d) - b * math.sin(d))))
+            rb.append(int(round(a * math.sin(d) + b * math.cos(d))))
+        t.ref_alfa, t.ref_beta = ra, rb
+        return t
+
+    def test_sin_desfase(self):
+        self.assertAlmostEqual(VM.metricas(trama_senoidal()).desfase, 0.0, delta=0.01)
+
+    def test_corriente_adelantada(self):
+        self.assertAlmostEqual(VM.metricas(self.trama_desfasada(10.0)).desfase, 10.0, delta=0.01)
+
+    def test_corriente_atrasada(self):
+        self.assertAlmostEqual(VM.metricas(self.trama_desfasada(-4.0)).desfase, -4.0, delta=0.01)
+
+    def test_no_envuelve_cerca_de_180(self):
+        self.assertAlmostEqual(abs(VM.metricas(self.trama_desfasada(179.0)).desfase), 179.0, delta=0.01)
+
+    def test_titulo(self):
+        t = self.trama_desfasada(-4.0)
+        texto, _ = VM.texto_titulo(t, VM.metricas(t), 0)
+        self.assertIn("desfase -4.0\u00b0", texto)
+
+    def test_referencia_nula_no_muestra_desfase(self):
+        t = trama_senoidal(amp=0.0)
+        m = VM.metricas(t)
+        self.assertTrue(math.isnan(m.desfase))
+        texto, _ = VM.texto_titulo(t, m, 0)
+        self.assertNotIn("desfase", texto)
+        self.assertNotIn("nan", texto.lower())
+
 if __name__ == "__main__":
     unittest.main()

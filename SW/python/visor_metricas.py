@@ -38,6 +38,7 @@ class Metricas:
     f_ref: float
     err_pct: object             # float, o None con referencia nula
     valida: bool
+    desfase: float = math.nan   # grados, + = la corriente adelanta a la ref
 
 
 def _ventana(t):
@@ -61,14 +62,18 @@ def metricas(t):
     a = a_pu(t.i_alfa[inicio:])
     b = a_pu(t.i_beta[inicio:])
     amp = float(np.mean(np.hypot(a, b)))
-    if amp < AMP_MIN:
-        freq = math.nan
-    else:
+    freq = desfase = math.nan
+    if amp >= AMP_MIN:
         fase = np.unwrap(np.arctan2(b, a))
         pendiente = np.polyfit(np.arange(len(fase)), fase, 1)[0]
         freq = float(pendiente * FS / (2 * math.pi))
+        # Angulo de i * conj(ref), promediado como fasor (no como angulo, asi
+        # no salta en +-180). Con la ref nula no hay contra que comparar.
+        ref = a_pu(t.ref_alfa[inicio:]) + 1j * a_pu(t.ref_beta[inicio:])
+        if amp_ref > 0:
+            desfase = math.degrees(np.angle(np.sum((a + 1j * b) * np.conj(ref))))
     err = (amp - amp_ref) / amp_ref * 100.0 if amp_ref > 0 else None
-    return Metricas(amp, freq, amp_ref, f_ref, err, True)
+    return Metricas(amp, freq, amp_ref, f_ref, err, True, desfase)
 
 
 def texto_titulo(t, m, perdidas):
@@ -79,6 +84,8 @@ def texto_titulo(t, m, perdidas):
         partes[0] += ", err %+.1f %%)" % m.err_pct if m.err_pct is not None else ")"
         partes.append("f = %.2f Hz (ref %.4g)" % (m.freq, m.f_ref)
                       if not math.isnan(m.freq) else "f = -- (ref %.4g)" % m.f_ref)
+        if not math.isnan(m.desfase):
+            partes.append("desfase %+.1f\u00b0" % m.desfase)
     else:
         partes = ["escalon: ref %.4g pu, %.4g Hz (se mide en la proxima trama)"
                   % (m.amp_ref, m.f_ref)]
