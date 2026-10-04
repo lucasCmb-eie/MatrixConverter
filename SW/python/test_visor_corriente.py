@@ -160,5 +160,100 @@ class TestComandos(unittest.TestCase):
             VT.numero_de_texto("cuarenta")
 
 
+import numpy as np
+import visor_metricas as VM
+
+
+class TestMetricas(unittest.TestCase):
+
+    def test_clarke_inversa_da_tres_fases_a_120(self):
+        n = np.arange(512)
+        w = 2 * np.pi * 50 / VM.FS
+        u, v, w_ = VM.clarke_inversa(0.06 * np.cos(w * n), 0.06 * np.sin(w * n))
+        for fase, desfase in [(u, 0), (v, -2 * np.pi / 3), (w_, 2 * np.pi / 3)]:
+            np.testing.assert_allclose(fase, 0.06 * np.cos(w * n + desfase), atol=1e-12)
+
+    def test_senoidal_pura(self):
+        m = VM.metricas(trama_senoidal(amp=0.06, f=50.0))
+        self.assertTrue(m.valida)
+        self.assertAlmostEqual(m.amp, 0.06, delta=1e-6)
+        self.assertAlmostEqual(m.freq, 50.0, delta=0.01)
+        self.assertAlmostEqual(m.err_pct, 0.0, delta=0.01)
+
+    def test_frecuencia_sin_ciclos_enteros(self):
+        m = VM.metricas(trama_senoidal(amp=0.05, f=37.3, fase=1.0))
+        self.assertAlmostEqual(m.freq, 37.3, delta=0.01)
+
+    def test_error_relativo(self):
+        t = trama_senoidal(amp=0.066)
+        t.amp_ref = q824(0.06)
+        self.assertAlmostEqual(VM.metricas(t).err_pct, 10.0, delta=0.01)
+
+    def test_escalon_mide_solo_despues_del_establecimiento(self):
+        # antes del escalon 0,03 pu; despues 0,09. Si mirara toda la trama
+        # daria un promedio de las dos.
+        t = trama_senoidal(amp=0.09, flags=VT.FL_ESCALON, muestra_escalon=64,
+                           amp_ref_prev=q824(0.03))
+        for n in range(64):
+            t.i_alfa[n] //= 3
+            t.i_beta[n] //= 3
+        m = VM.metricas(t)
+        self.assertTrue(m.valida)
+        self.assertAlmostEqual(m.amp, 0.09, delta=1e-6)
+
+    def test_escalon_a_5hz_no_alcanza_un_ciclo(self):
+        t = trama_senoidal(amp=0.06, f=5.0, flags=VT.FL_ESCALON, muestra_escalon=64)
+        self.assertFalse(VM.metricas(t).valida)
+
+    def test_5hz_sin_escalon_mide_igual(self):
+        # 105 ms son medio ciclo a 5 Hz, pero la pendiente de fase no necesita
+        # ciclos enteros: solo una ventana sin escalon.
+        t = trama_senoidal(amp=0.06, f=5.0)
+        # la regla de "un ciclo" aplica solo con escalon; sin escalon se mide
+        m = VM.metricas(t)
+        self.assertAlmostEqual(m.freq, 5.0, delta=0.01)
+
+    def test_referencia_nula(self):
+        t = trama_senoidal(amp=0.0)
+        m = VM.metricas(t)
+        self.assertTrue(math.isnan(m.freq))
+        self.assertIsNone(m.err_pct)
+        texto, alarma = VM.texto_titulo(t, m, 0)
+        self.assertIn("ref 0", texto)
+        self.assertNotIn("nan", texto.lower())
+        self.assertFalse(alarma)
+
+    def test_titulo_alarma(self):
+        t = trama_senoidal(clamp=0x4)
+        self.assertTrue(VM.texto_titulo(t, VM.metricas(t), 0)[1])
+        t = trama_senoidal(flags=VT.FL_RECHAZO)
+        texto, alarma = VM.texto_titulo(t, VM.metricas(t), 0)
+        self.assertTrue(alarma)
+        self.assertIn("rechaz", texto)
+
+    def test_tramas_perdidas(self):
+        self.assertEqual(VM.tramas_perdidas(None, 5), 0)
+        self.assertEqual(VM.tramas_perdidas(5, 6), 0)
+        self.assertEqual(VM.tramas_perdidas(5, 8), 2)
+        # placa reseteada: el contador vuelve a empezar, no son 2^32 perdidas
+        self.assertEqual(VM.tramas_perdidas(500, 0), 0)
+
+
+class TestEspejoSetPoints(unittest.TestCase):
+    """La aritmetica de visor_corriente.c, replicada operacion por operacion."""
+
+    def test_valores_validados_en_la_placa(self):
+        self.assertEqual(VM.espejo_amp_q824(60000), 1006633)     # V_AMP_06
+        self.assertEqual(VM.espejo_paso_ref(50000), 43980800)
+        self.assertEqual(VM.espejo_k(50000), 1079257)
+        self.assertEqual(VM.espejo_paso_ref(55000), 48377856)
+        self.assertEqual(VM.espejo_k(55000), 1187140)
+
+    def test_taylor_igual_a_sin_en_todo_el_rango(self):
+        ts = 2048 / 10e6
+        for f_mhz in range(5000, 100001, 7):
+            exacto = math.floor(2 * math.sin(math.pi * f_mhz / 1000 * ts) * Q24 + 0.5)
+            self.assertEqual(VM.espejo_k(f_mhz), exacto, f_mhz)
+
 if __name__ == "__main__":
     unittest.main()
