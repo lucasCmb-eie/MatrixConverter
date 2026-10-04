@@ -27,7 +27,11 @@ param(
     [string]$Com     = "COM12",
     [int]   $Baud    = 115200,
     [string]$Salida  = "",
-    [int]   $Timeout = 180
+    [int]   $Timeout = 180,
+    # Programa y arranca, pero NO abre el COM. Para programas que no terminan
+    # nunca (visor_corriente.c): ahi no hay carrera que ganar y el puerto lo
+    # tiene que tomar el visor de Python.
+    [switch]$SoloProgramar
 )
 
 $ErrorActionPreference = "Stop"
@@ -57,6 +61,18 @@ rst -processor
 dow $($W -replace '\\','/')/Validador/build/Validador.elf
 con
 "@ | Set-Content $tcl -Encoding ascii
+
+if ($SoloProgramar) {
+    Write-Host "programando la PL y bajando el .elf (sin abrir el puerto)..."
+    $p = Start-Process -FilePath $XSCT -ArgumentList "`"$tcl`"" -NoNewWindow -PassThru -Wait
+    if ($p.ExitCode -ne 0) {
+        Write-Host "xsct salio con codigo $($p.ExitCode)"
+        exit 1
+    }
+    Write-Host "OK, programa corriendo. Ahora:"
+    Write-Host "  python SW/python/VisorCorriente.py $Com"
+    exit 0
+}
 
 # ---- 1) el puerto PRIMERO ----
 Write-Host "abriendo $Com a $Baud..."
