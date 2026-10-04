@@ -98,7 +98,7 @@ class Vista:
         self.mandar = mandar
         self.fig = plt.figure(figsize=(11, 7.5))
         gs = self.fig.add_gridspec(2, 1, height_ratios=[3, 1.3], hspace=0.35,
-                                   bottom=0.17, top=0.92)
+                                   bottom=0.17, top=0.89)
         self.ax = self.fig.add_subplot(gs[0])
         self.axh = self.fig.add_subplot(gs[1])
         self.axf = self.axh.twinx()

@@ -9,11 +9,13 @@ Trama (placa -> PC), palabras u32 little-endian:
      1        contador de trama
      2        amp_ref vigente al final de la trama (Q8.24)
      3        f_o vigente al final, en mHz
-     4        flags: bit0 hubo escalon, bit1 se rechazo un comando
+     4        flags: bit0 hubo escalon, bit1 se rechazo un comando,
+              bit2 el lazo saturo (o_sat) en alguna muestra
      5        muestra del escalon (64), 0 si no hubo
      6        amp_ref previo al escalon
      7        f_o previo al escalon (mHz)
-     8        o_clamp de CtrlRegs (ranura 3, 16 bits bajos, sticky)
+     8        bits 15..0: o_clamp de CtrlRegs (ranura 3, sticky)
+              bits 31..16: muestras de la trama con o_sat = 1 (ranura 18)
      9        N (512)
     10..      N cuaternas i_alfa, i_beta, ref_alfa, ref_beta (Q8.24 con signo)
     10+4N     checksum: suma u32 de las palabras 1 .. 10+4N-1
@@ -35,6 +37,7 @@ MUESTRA_ESCALON = 64
 
 FL_ESCALON = 1
 FL_RECHAZO = 2
+FL_SATURA = 4
 
 A_MAX_MICRO = 110000            # 0,11 pu
 F_MIN_MICRO = 5000000           # 5 Hz
@@ -55,6 +58,7 @@ class Trama:
     i_beta: list = field(repr=False)
     ref_alfa: list = field(repr=False)
     ref_beta: list = field(repr=False)
+    n_sat: int = 0
 
 
 def a_signed32(u):
@@ -64,7 +68,8 @@ def a_signed32(u):
 def codificar(t):
     """La trama tal como la manda el PS. La usa la placa simulada y los tests."""
     pal = [t.contador, t.amp_ref, t.f_mhz, t.flags, t.muestra_escalon,
-           t.amp_ref_prev, t.f_mhz_prev, t.clamp, N_MUESTRAS]
+           t.amp_ref_prev, t.f_mhz_prev, (t.clamp & 0xFFFF) | (t.n_sat << 16),
+           N_MUESTRAS]
     for n in range(N_MUESTRAS):
         pal += [t.i_alfa[n], t.i_beta[n], t.ref_alfa[n], t.ref_beta[n]]
     pal = [p & 0xFFFFFFFF for p in pal]
@@ -78,7 +83,7 @@ def _decodificar(b):
     cuerpo = [a_signed32(p) for p in pal[N_ENCAB:N_ENCAB + N_CANALES * N_MUESTRAS]]
     return Trama(contador=pal[1], amp_ref=pal[2], f_mhz=pal[3], flags=pal[4],
                  muestra_escalon=pal[5], amp_ref_prev=pal[6], f_mhz_prev=pal[7],
-                 clamp=pal[8] & 0xFFFF,
+                 clamp=pal[8] & 0xFFFF, n_sat=pal[8] >> 16,
                  i_alfa=cuerpo[0::4], i_beta=cuerpo[1::4],
                  ref_alfa=cuerpo[2::4], ref_beta=cuerpo[3::4])
 

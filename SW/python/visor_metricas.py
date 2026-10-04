@@ -77,7 +77,7 @@ def metricas(t):
 
 
 def texto_titulo(t, m, perdidas):
-    """(texto, alarma). Alarma si CtrlRegs clampeo algo o se rechazo un
+    """(texto en dos renglones, alarma). Alarma si CtrlRegs clampeo algo o se rechazo un
     comando: en esos casos la onda puede verse bien y no ser la pedida."""
     if m.valida:
         partes = ["|i| = %.4f pu (ref %.4g" % (m.amp, m.amp_ref)]
@@ -89,17 +89,23 @@ def texto_titulo(t, m, perdidas):
     else:
         partes = ["escalon: ref %.4g pu, %.4g Hz (se mide en la proxima trama)"
                   % (m.amp_ref, m.f_ref)]
-    partes.append("trama #%d" % t.contador)
+    # Dos renglones: con desfase y avisos uno solo no entraba en la ventana.
+    estado = ["trama #%d" % t.contador]
     if perdidas:
-        partes.append("%d perdidas" % perdidas)
+        estado.append("%d perdidas" % perdidas)
     alarma = False
     if t.clamp:
-        partes.append("CLAMP 0x%x" % t.clamp)
+        estado.append("CLAMP 0x%x" % t.clamp)
+        alarma = True
+    if t.flags & VT.FL_SATURA:
+        # Pasada del techo de corriente, que depende de f: la onda no es la
+        # pedida aunque se vea prolija. Medido: 0,06 pu a 100 Hz.
+        estado.append("SATURA (%d/%d)" % (t.n_sat, VT.N_MUESTRAS))
         alarma = True
     if t.flags & VT.FL_RECHAZO:
-        partes.append("comando rechazado")
+        estado.append("comando rechazado")
         alarma = True
-    return "   ".join(partes), alarma
+    return "   ".join(partes) + "\n" + "   ".join(estado), alarma
 
 
 def tramas_perdidas(anterior, actual):

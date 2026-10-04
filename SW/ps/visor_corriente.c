@@ -44,17 +44,24 @@
 /* ------------------------------------------------- trama */
 #define SYNC            0xA55A5AA5u
 #define N_MUESTRAS      512u
-#define N_CAN           4u
+#define N_CAN           4u       /* canales que viajan en la trama       */
+#define N_LEC           5u       /* ranuras leidas: las 4 + la de o_sat  */
 #define MUESTRA_ESCALON 64u
 #define FL_ESCALON      1u
 #define FL_RECHAZO      2u
+#define FL_SATURA       4u
+#define BIT_SAT         20u      /* o_sat en la ranura 18: q 8..0, al_o 19..9 */
 
 #define UART_SR_RXEMPTY (1u << 1)
 
-static const u32 RANURAS[N_CAN] = { 9u, 10u, 14u, 15u };   /* ia ib ra rb */
+/* ia ib ra rb, y la 18 (q | al_o | o_sat) para contar la saturacion. Una
+ * lectura AXI mas por muestra, muy por debajo del Ts; no viaja en la trama:
+ * solo se cuenta. El techo de corriente depende de f (|Z| crece con f), y
+ * medido en la placa 0,06 pu a 100 Hz satura sin que nada lo avise. */
+static const u32 RANURAS[N_LEC] = { 9u, 10u, 14u, 15u, 18u };
 static const u32 RANURA_CLAMP[1] = { 3u };
 
-static u32 datos[N_MUESTRAS][N_CAN];
+static u32 datos[N_MUESTRAS][N_LEC];
 
 /* estado de los set points */
 static u32 amp_q;                 /* Q8.24, vigente                          */
@@ -235,7 +242,7 @@ static int arrancar(void)
 }
 
 /* ------------------------------------------------- una trama */
-static int capturar_trama(u32 *flags, u32 *amp_prev, u32 *f_prev)
+static int capturar_trama(u32 *flags, u32 *amp_prev, u32 *f_prev, u32 *n_sat)
 {
     u32 n;
     int escalon;
@@ -245,6 +252,7 @@ static int capturar_trama(u32 *flags, u32 *amp_prev, u32 *f_prev)
     *amp_prev = amp_q;
     *f_prev = f_mhz;
     *flags = 0u;
+    *n_sat = 0u;
 
     for (n = 0u; n < N_MUESTRAS; n++) {
         if (escalon && n == MUESTRA_ESCALON) {
@@ -265,12 +273,16 @@ static int capturar_trama(u32 *flags, u32 *amp_prev, u32 *f_prev)
             hay_pend_f = 0;
             *flags |= FL_ESCALON;
         }
-        if (capturar_sel(datos[n], RANURAS, N_CAN) != 0) {
+        if (capturar_sel(datos[n], RANURAS, N_LEC) != 0) {
             con_str("\r\n# ERROR: se corto el disparo en la muestra ");
             con_dec(n);
             con_str("\r\n");
             return -1;
         }
+        *n_sat += (datos[n][N_CAN] >> BIT_SAT) & 1u;
+    }
+    if (*n_sat != 0u) {
+        *flags |= FL_SATURA;
     }
     if (rechazo) {
         *flags |= FL_RECHAZO;
@@ -279,7 +291,8 @@ static int capturar_trama(u32 *flags, u32 *amp_prev, u32 *f_prev)
     return 0;
 }
 
-static void enviar_trama(u32 contador, u32 flags, u32 amp_prev, u32 f_prev, u32 clamp)
+static void enviar_trama(u32 contador, u32 flags, u32 amp_prev, u32 f_prev, u32 clamp,
+                         u32 n_sat)
 {
     u32 n, c;
 
@@ -292,7 +305,7 @@ static void enviar_trama(u32 contador, u32 flags, u32 amp_prev, u32 f_prev, u32 
     tx_sum((flags & FL_ESCALON) ? MUESTRA_ESCALON : 0u);
     tx_sum(amp_prev);
     tx_sum(f_prev);
-    tx_sum(clamp & 0xFFFFu);
+    tx_sum((clamp & 0xFFFFu) | (n_sat << 16));   /* n_sat <= 512, entra en 16 b */
     tx_sum(N_MUESTRAS);
     for (n = 0u; n < N_MUESTRAS; n++) {
         for (c = 0u; c < N_CAN; c++) {
@@ -305,7 +318,7 @@ static void enviar_trama(u32 contador, u32 flags, u32 amp_prev, u32 f_prev, u32 
 int main(void)
 {
     u32 contador = 0u;
-    u32 flags, amp_prev, f_prev, clamp;
+    u32 flags, amp_prev, f_prev, clamp, n_sat;
 
     uart_puts(UART0_BASE, "\r\n# ---- visor_corriente ---- UART0 (MIO 14..15)\r\n");
     uart_puts(UART1_BASE, "\r\n# ---- visor_corriente ---- UART1 (MIO 48..49)\r\n");
@@ -316,14 +329,14 @@ int main(void)
     con_str("# en regimen, mandando tramas\r\n");
 
     for (;;) {
-        if (capturar_trama(&flags, &amp_prev, &f_prev) != 0) {
+        if (capturar_trama(&flags, &amp_prev, &f_prev, &n_sat) != 0) {
             usleep(1000000);
             continue;
         }
         if (capturar_sel(&clamp, RANURA_CLAMP, 1u) != 0) {
             clamp = 0xFFFFu;      /* imposible en regimen: que se vea en rojo */
         }
-        enviar_trama(contador, flags, amp_prev, f_prev, clamp);
+        enviar_trama(contador, flags, amp_prev, f_prev, clamp, n_sat);
         contador++;
     }
 }

@@ -509,5 +509,66 @@ class TestDesfase(unittest.TestCase):
         self.assertNotIn("desfase", texto)
         self.assertNotIn("nan", texto.lower())
 
+class TestSaturacion(unittest.TestCase):
+    """El lazo satura cuando la corriente pedida supera el techo, que depende
+    de f (|Z| crece con f). Medido en la placa: 0,06 pu a 100 Hz da err -6,3 %
+    y el desfase crece sin parar. La placa cuenta las muestras con o_sat y lo
+    manda en el bit 2 de flags y en los 16 bits altos de la palabra 8."""
+
+    def test_ida_y_vuelta_con_saturacion(self):
+        t = trama_senoidal(flags=VT.FL_SATURA, n_sat=300, clamp=0x4)
+        (r,), _ = VT.Parser().alimentar(VT.codificar(t))
+        self.assertEqual((r.n_sat, r.clamp, r.flags), (300, 0x4, VT.FL_SATURA))
+
+    def test_palabra_8_empaqueta_clamp_y_cuenta(self):
+        b = VT.codificar(trama_senoidal(n_sat=512, clamp=0x3))
+        self.assertEqual(struct.unpack_from("<I", b, 4 * 8)[0], (512 << 16) | 0x3)
+
+    def test_sin_saturacion_por_defecto(self):
+        self.assertEqual(trama_senoidal().n_sat, 0)
+
+    def test_titulo_en_rojo(self):
+        t = trama_senoidal(flags=VT.FL_SATURA, n_sat=300)
+        texto, alarma = VM.texto_titulo(t, VM.metricas(t), 0)
+        self.assertIn("SATURA (300/512)", texto)
+        self.assertTrue(alarma)
+
+    def test_simulador_satura_a_100hz(self):
+        placa = visor_sim.PlacaSimulada(tiempo_real=False)
+        placa.write(VT.comando_frec(100))
+        leer_tramas(placa, 1)
+        t, = leer_tramas(placa, 1)
+        self.assertTrue(t.flags & VT.FL_SATURA)
+        self.assertEqual(t.n_sat, VT.N_MUESTRAS)
+        self.assertLess(VM.metricas(t).amp, 0.06)
+
+    def test_simulador_no_satura_a_100hz_con_004(self):
+        placa = visor_sim.PlacaSimulada(tiempo_real=False)
+        placa.write(VT.comando_frec(100))
+        placa.write(VT.comando_amp(0.04))
+        leer_tramas(placa, 1)
+        t, = leer_tramas(placa, 1)
+        self.assertFalse(t.flags & VT.FL_SATURA)
+        self.assertAlmostEqual(VM.metricas(t).amp, 0.04, delta=0.001)
+
+class TestTituloDosRenglones(unittest.TestCase):
+    """Con desfase y avisos el titulo no entraba en el ancho de la ventana:
+    arriba las mediciones, abajo el estado."""
+
+    def test_mediciones_arriba_estado_abajo(self):
+        t = trama_senoidal(flags=VT.FL_SATURA | VT.FL_RECHAZO, n_sat=448, clamp=0x4)
+        texto, _ = VM.texto_titulo(t, VM.metricas(t), 3)
+        arriba, abajo = texto.split("\n")
+        for x in ["|i| =", "f = ", "desfase"]:
+            self.assertIn(x, arriba)
+        for x in ["trama #7", "3 perdidas", "CLAMP", "SATURA", "rechazado"]:
+            self.assertIn(x, abajo)
+
+    def test_renglones_cortos(self):
+        t = trama_senoidal(flags=VT.FL_SATURA | VT.FL_RECHAZO, n_sat=448, clamp=0x4)
+        texto, _ = VM.texto_titulo(t, VM.metricas(t), 3)
+        for renglon in texto.split("\n"):
+            self.assertLessEqual(len(renglon), 90, renglon)
+
 if __name__ == "__main__":
     unittest.main()
