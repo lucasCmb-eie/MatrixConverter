@@ -19,6 +19,7 @@ El ritmo de refresco lo pone la UART: 8236 bytes a 115200 son ~0,72 s.
 """
 
 import argparse
+import math
 import collections
 import queue
 import sys
@@ -33,6 +34,7 @@ import visor_trama as VT
 HISTORIA_S = 30.0
 SPAN_AMP = 0.01             # pu: rango minimo del eje de |i| en la historia
 SPAN_F = 2.0                # Hz: idem para f
+CONGELADA_S = 5.0           # s que queda en pantalla la trama del escalon
 
 
 def limites(valores, span_min):
@@ -90,7 +92,8 @@ def lector(fuente, cola, parar):
 
 class Vista:
 
-    def __init__(self, plt, interactiva, mandar):
+    def __init__(self, plt, interactiva, mandar, reloj=time.monotonic):
+        self.reloj = reloj
         self.plt = plt
         self.mandar = mandar
         self.fig = plt.figure(figsize=(11, 7.5))
@@ -116,7 +119,7 @@ class Vista:
                        title="punteada: referencia", title_fontsize=8)
 
         self.hist = collections.deque()
-        self.t0 = time.monotonic()
+        self.t0 = reloj()
         self.lh_amp, = self.axh.plot([], [], "C0.-", lw=1, ms=3, label="|i|")
         self.lh_aref, = self.axh.plot([], [], "C0--", lw=0.8, label="ref |i|")
         self.lh_f, = self.axf.plot([], [], "C3.-", lw=1, ms=3, label="f")
@@ -137,6 +140,8 @@ class Vista:
 
         self.anterior = None
         self.perdidas = 0
+        self.mostrada = None
+        self.congelada_hasta = -math.inf
 
     def _enviar(self, letra, texto):
         """Manda SOLO con Enter. matplotlib dispara 'submit' tambien al perder
@@ -176,16 +181,29 @@ class Vista:
     def procesar(self, tramas):
         """Todas las tramas llegadas cuentan para 'perdidas' y para la historia;
         se dibuja una sola, la de elegir_trama()."""
-        ahora = time.monotonic() - self.t0
+        ahora = self.reloj() - self.t0
         for t in tramas:
             self.perdidas += VM.tramas_perdidas(self.anterior, t.contador)
             self.anterior = t.contador
             m = VM.metricas(t)
             if m.valida:
                 self.hist.append((ahora, m.amp, m.amp_ref, m.freq, m.f_ref))
-        self.dibujar(elegir_trama(tramas), ahora)
+        elegida = elegir_trama(tramas)
+        if elegida.flags & VT.FL_ESCALON:
+            # La trama del escalon se queda CONGELADA_S en pantalla: si no, la
+            # reemplaza la siguiente a los ~0,7 s y el transitorio casi no se
+            # ve. Un escalon nuevo la reemplaza y reinicia la cuenta.
+            self.congelada_hasta = ahora + CONGELADA_S
+            self.dibujar(elegida, ahora)
+        elif ahora < self.congelada_hasta:
+            # La onda y el titulo quedan quietos; la historia y las cajas no.
+            self.dibujar_historia(ahora)
+            self._sincronizar_cajas(elegida)
+        else:
+            self.dibujar(elegida, ahora)
 
     def dibujar(self, t, ahora):
+        self.mostrada = t
         m = VM.metricas(t)
         for linea, y in zip(self.l_i, VM.clarke_inversa(VM.a_pu(t.i_alfa), VM.a_pu(t.i_beta))):
             linea.set_ydata(y)
@@ -195,6 +213,16 @@ class Vista:
         tope = max(0.02, 1.15 * max(np.max(np.abs(l.get_ydata())) for l in self.l_i + self.l_r))
         self.ax.set_ylim(-tope, tope)
 
+        self.dibujar_historia(ahora)
+
+        texto, alarma = VM.texto_titulo(t, m, self.perdidas)
+        if t.flags & VT.FL_ESCALON:
+            texto += "   [escalon: congelado %g s]" % CONGELADA_S
+        self.titulo.set_text(texto)
+        self.titulo.set_color("red" if alarma else "black")
+        self._sincronizar_cajas(t)
+
+    def dibujar_historia(self, ahora):
         while self.hist and self.hist[0][0] < ahora - HISTORIA_S:
             self.hist.popleft()
         if self.hist:
@@ -206,11 +234,6 @@ class Vista:
             self.axh.set_ylim(*limites(h[:, 1:3].ravel(), SPAN_AMP))
             self.axf.set_ylim(*limites(h[:, 3:5].ravel(), SPAN_F))
             self.axh.set_xlim(max(0.0, ahora - HISTORIA_S), max(ahora, 1.0))
-
-        texto, alarma = VM.texto_titulo(t, m, self.perdidas)
-        self.titulo.set_text(texto)
-        self.titulo.set_color("red" if alarma else "black")
-        self._sincronizar_cajas(t)
 
 
 def correr_png(args, fuente):

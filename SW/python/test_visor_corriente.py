@@ -419,5 +419,56 @@ class TestCajasYTramas(unittest.TestCase):
         self.assertEqual(VisorCorriente.elegir_trama(tr).contador, 2)
         self.assertEqual(VisorCorriente.elegir_trama(tr[:1] + tr[2:]).contador, 3)
 
+class TestCongelarEscalon(unittest.TestCase):
+    """La trama del escalon queda CONGELADA_S en pantalla: si no, la reemplaza
+    la siguiente a los ~0,7 s y el transitorio casi no se llega a ver."""
+
+    def setUp(self):
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        self.plt = plt
+        self.t = [100.0]
+        self.vista = VisorCorriente.Vista(plt, interactiva=False, mandar=lambda c: None,
+                                          reloj=lambda: self.t[0])
+        self.vista.procesar([trama_senoidal(contador=0)])
+
+    def tearDown(self):
+        self.plt.close("all")
+
+    def escalon(self, contador):
+        return trama_senoidal(contador=contador, flags=VT.FL_ESCALON, muestra_escalon=64)
+
+    def test_queda_congelada(self):
+        self.vista.procesar([self.escalon(1)])
+        self.t[0] += 2.0
+        self.vista.procesar([trama_senoidal(contador=2)])
+        self.assertEqual(self.vista.mostrada.contador, 1)
+        self.assertIn("congelado", self.vista.titulo.get_text())
+
+    def test_se_libera_despues_de_5_s(self):
+        self.vista.procesar([self.escalon(1)])
+        self.t[0] += VisorCorriente.CONGELADA_S + 0.1
+        self.vista.procesar([trama_senoidal(contador=2)])
+        self.assertEqual(self.vista.mostrada.contador, 2)
+        self.assertNotIn("congelado", self.vista.titulo.get_text())
+
+    def test_la_historia_sigue_mientras_esta_congelada(self):
+        self.vista.procesar([self.escalon(1)])
+        n = len(self.vista.hist)
+        self.t[0] += 1.0
+        self.vista.procesar([trama_senoidal(contador=2), trama_senoidal(contador=3)])
+        self.assertEqual(len(self.vista.hist), n + 2)
+        self.assertEqual(self.vista.perdidas, 0)
+
+    def test_otro_escalon_reemplaza_y_reinicia(self):
+        self.vista.procesar([self.escalon(1)])
+        self.t[0] += 4.0
+        self.vista.procesar([self.escalon(2)])
+        self.assertEqual(self.vista.mostrada.contador, 2)
+        self.t[0] += 4.0            # 8 s del primero, 4 del segundo: sigue congelada
+        self.vista.procesar([trama_senoidal(contador=3)])
+        self.assertEqual(self.vista.mostrada.contador, 2)
+
 if __name__ == "__main__":
     unittest.main()
