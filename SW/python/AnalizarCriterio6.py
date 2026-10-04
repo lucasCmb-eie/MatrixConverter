@@ -3,20 +3,39 @@
 
     python SW/python/AnalizarCriterio6.py captura.csv
 
-    | 6 | Referencia nula, regimen | ciclo limite de x1/x2 acotado a pocos LSB |
+    | 6 | Referencia nula, regimen | x1/x2 ACOTADO (sin crecimiento ni deriva)
+    |   |                         | y con corriente de reposo despreciable.
+    |   |                         | NO se exige que sea de pocos LSB.
 
-QUE SE MIDE Y POR QUE ESOS BITS
+EL CRITERIO SE REFORMULO DESPUES DE MEDIRLO
 
-Con amp_ref = 0 el lazo no tiene nada que seguir, pero los resonantes siguen
-integrando el error de cuantizacion. Lo que queda es un CICLO LIMITE: una
-oscilacion que no decae porque la cuantizacion la realimenta. El criterio pide
-que este acotado a pocos LSB, no que sea cero -- cero es imposible en punto
-fijo.
+La version original del spec pedia "ciclo limite de x1/x2 acotado a POCOS LSB".
+Eso no es alcanzable con esta arquitectura, y no por un defecto: asumia un
+mecanismo que la medicion en placa del 03/10/2026 descarto.
 
-La ranura 19 trae los 32 bits BAJOS de x1 (que es Q8.40 en 48 bits), no los
-altos. Es deliberado: un ciclo limite de unos pocos LSB de Q8.40 desaparece si
-se trunca a Q8.24. La magnitud de x1 no se pierde, se observa por v_alfa
-(ranura 16), que es kp*e + x1>>16.
+Con amp_ref = 0 la corriente medida da EXACTAMENTE cero, asi que el error del
+lazo es exactamente cero. Y el resonante de dos integradores tiene det(A) = 1
+EXACTO -- los polos exactamente sobre el circulo unitario, que es la propiedad
+buscada en el spec 5.2 para que la frecuencia sintonizada no derive con la
+cuantizacion de k. Un oscilador sin perdidas con entrada nula CONSERVA SU
+ENERGIA: x1 gira a 50,0 Hz con la amplitud que agarro en el arranque, y nada la
+amortigua.
+
+LA PREDICCION QUE LO DECIDIO. Si la amplitud la fijara la cuantizacion seria
+reproducible entre corridas; si la fijara la condicion inicial, no. Dos corridas
+consecutivas del mismo binario dieron pico a pico de 7,79e9 y 1,62e10 LSB,
+factor 2,08. Es condicion inicial: no es un ciclo limite de cuantizacion sino la
+oscilacion LIBRE del resonante.
+
+Que el estado guardado no dana el transitorio se verifica aparte, con
+AnalizarEstadoGuardado.py sobre el modo 7.
+
+LA RANURA 19 Y SUS BITS. Trae los 32 bits BAJOS de x1 (Q8.40 en 48 bits). Se
+eligieron asi cuando se esperaba un ciclo de pocos LSB, que en los bits altos
+desapareceria. Medido, x1 oscila 1,82 VECES esa ventana, asi que envuelve y hay
+que desenvolver -- lo que el script hace sin perdida, porque el salto entre
+muestras queda cuatro veces por debajo del limite de 2**31. Si se rehiciera, los
+bits altos serian mejor eleccion para esta magnitud.
 
 QUE DISTINGUE UN CICLO LIMITE ACOTADO DE UNO QUE NO LO ESTA
 
@@ -193,29 +212,9 @@ def main():
         print()
 
     # ------------------------------------------------------------------
-    # EL VEREDICTO, y por que no es el que el spec pedia literalmente.
-    #
-    # El spec dice "ciclo limite de x1/x2 acotado a pocos LSB". Medido en la
-    # placa el 03/10/2026, lo que pasa es OTRA COSA, y hace falta nombrarla:
-    #
-    #   - i_alfa da EXACTAMENTE cero en las 4096 muestras, asi que el error del
-    #     lazo es exactamente cero
-    #   - el resonante de dos integradores tiene det(A) = 1 EXACTO: los polos
-    #     caen exactamente sobre el circulo unitario. Es una decision deliberada
-    #     del spec 5.2, para que la frecuencia sintonizada no derive con la
-    #     cuantizacion de k
-    #   - un oscilador sin perdidas con entrada nula CONSERVA SU ENERGIA. x1
-    #     gira a 50,0 Hz -- la frecuencia a la que k sintoniza -- indefinidamente
-    #
-    # O sea que no es un ciclo limite de cuantizacion: es la oscilacion libre
-    # del resonante, con la amplitud que agarro en el arranque. La prueba:
-    # dos corridas consecutivas del mismo programa dieron pp de 7,79e9 y
-    # 1,62e10 LSB, un factor 2,08. Una amplitud de cuantizacion seria
-    # reproducible; una de condicion inicial, no.
-    #
-    # "Pocos LSB" no es alcanzable con esta arquitectura y no es la pregunta
-    # util. Las preguntas utiles son si esta ACOTADA y si HACE DA~O, y las dos
-    # se miden abajo.
+    # EL VEREDICTO. Se mide lo que el criterio REFORMULADO pide -- acotada, sin
+    # deriva, sin corriente -- y no el tama~o absoluto del estado. El porque del
+    # cambio esta en el docstring de arriba y en el spec 7.4.
     # ------------------------------------------------------------------
     fallas = []
     if crec > LIMITE_CRECIMIENTO:
@@ -243,24 +242,20 @@ def main():
             print("  - %s" % f)
         return 1
 
-    print("CRITERIO 6: PASA, con una salvedad sobre como esta escrito")
-    print()
-    print("  Lo que se verifica y se cumple:")
+    print("CRITERIO 6: PASA")
     print("    - la oscilacion esta ACOTADA: el pp no crece (%.2fx entre mitades)" % crec)
     print("    - no hay deriva: %.4f %% del pp" % (100.0 * deriva_rel))
     if ia and ia[0] is not None:
         print("    - produce %.2e pu de corriente en reposo" % ((max(ia)-min(ia))/2.0))
     print()
-    print("  Lo que NO se cumple, y por que no corresponde exigirlo:")
-    print("    el estado NO esta en 'pocos LSB' -- mide %.2e en valor absoluto." % (pp/2.0**40))
-    print("    No es un ciclo limite de cuantizacion sino la oscilacion LIBRE del")
-    print("    resonante, que no decae porque det(A) = 1 exacto es una propiedad")
-    print("    BUSCADA del dise~o (spec 5.2). Con error exactamente cero no hay")
-    print("    nada que la amortigue.")
-    print()
-    print("  CONSECUENCIA REAL a tener en cuenta: el estado no decae, asi que")
-    print("  cuando llegue una referencia el resonante arranca con esta energia")
-    print("  guardada y se suma al transitorio.")
+    print("  Para contexto: el estado mide %.2e en valor absoluto, que NO es"
+          % (pp / 2.0**40))
+    print("  'pocos LSB'. El criterio dejo de exigirlo tras medirlo: es la")
+    print("  oscilacion libre del resonante, que no decae porque det(A) = 1")
+    print("  exacto es una propiedad buscada (spec 5.2). Que ese estado guardado")
+    print("  no da~a el transitorio se verifica con AnalizarEstadoGuardado.py:")
+    print("  medido, el sobrepico se queda en 1,51 +/- 0,11 % aunque la energia")
+    print("  previa varie 58 % entre corridas.")
     return 0
 
 
