@@ -313,5 +313,47 @@ class TestPlacaSimulada(unittest.TestCase):
         tr = leer_tramas(visor_sim.PlacaSimulada(tiempo_real=False), 3)
         self.assertEqual([t.contador for t in tr], [0, 1, 2])
 
+import VisorCorriente
+
+
+class TestVisor(unittest.TestCase):
+
+    def test_png_con_simulador_y_escalon(self):
+        with tempfile.TemporaryDirectory() as d:
+            ruta = os.path.join(d, "visor.png")
+            rc = VisorCorriente.main(["--simular", "--png", ruta, "--tramas", "3",
+                                      "--comando", "A 0.10"])
+            self.assertEqual(rc, 0)
+            self.assertGreater(os.path.getsize(ruta), 10000)
+
+    def test_comando_invalido_en_png_falla(self):
+        with tempfile.TemporaryDirectory() as d:
+            rc = VisorCorriente.main(["--simular", "--png", os.path.join(d, "x.png"),
+                                      "--comando", "A 0.5"])
+            self.assertEqual(rc, 1)
+
+    def test_puerto_inexistente_no_revienta(self):
+        self.assertEqual(VisorCorriente.main(["COM_QUE_NO_EXISTE"]), 1)
+
+    def test_sin_puerto_ni_simular(self):
+        self.assertEqual(VisorCorriente.main([]), 1)
+
+class TestLimitesHistoria(unittest.TestCase):
+
+    def test_span_minimo_con_valores_constantes(self):
+        # f constante con ruido de 1e-7: sin span minimo el eje se va a 1e-7
+        lo, hi = VisorCorriente.limites([50.0, 50.0000003, 49.9999998], 2.0)
+        self.assertAlmostEqual(hi - lo, 2.0)
+        self.assertAlmostEqual((hi + lo) / 2, 50.0, delta=1e-6)
+
+    def test_span_real_mayor_al_minimo(self):
+        lo, hi = VisorCorriente.limites([0.06, 0.10], 0.01)
+        self.assertLess(lo, 0.06)
+        self.assertGreater(hi, 0.10)
+
+    def test_ignora_nan(self):
+        lo, hi = VisorCorriente.limites([float("nan"), 40.0], 2.0)
+        self.assertAlmostEqual(hi - lo, 2.0)
+
 if __name__ == "__main__":
     unittest.main()
