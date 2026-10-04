@@ -355,5 +355,69 @@ class TestLimitesHistoria(unittest.TestCase):
         lo, hi = VisorCorriente.limites([float("nan"), 40.0], 2.0)
         self.assertAlmostEqual(hi - lo, 2.0)
 
+class TestCajasYTramas(unittest.TestCase):
+    """Hallazgos de la revision final: un clic fuera de la caja mandaba un
+    comando (matplotlib dispara 'submit' en stop_typing), y las tramas que el
+    dibujo salteaba se contaban como perdidas y podian esconder el escalon."""
+
+    def setUp(self):
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        self.plt = plt
+        self.enviados = []
+        self.vista = VisorCorriente.Vista(plt, interactiva=True, mandar=self.enviados.append)
+        self.vista.procesar([trama_senoidal(contador=0)])
+
+    def tearDown(self):
+        self.plt.close("all")
+
+    def tipear(self, caja, texto):
+        caja.begin_typing()
+        caja.text_disp.set_text(texto)
+
+    def enter(self, caja):
+        # lo que hace TextBox._keypress con Enter: submit SIN dejar de tipear
+        caja._observers.process("submit", caja.text)
+
+    def test_enter_manda_una_vez(self):
+        caja = self.vista.cajas["A"]
+        self.tipear(caja, "0,08")
+        self.enter(caja)
+        caja.stop_typing()          # el clic siguiente en cualquier lado
+        self.assertEqual(self.enviados, [b"A 0.080000\n"])
+
+    def test_clic_afuera_no_manda(self):
+        caja = self.vista.cajas["A"]
+        self.tipear(caja, "0.0")
+        caja.stop_typing()
+        self.assertEqual(self.enviados, [])
+
+    def test_edicion_abandonada_vuelve_al_valor_de_la_placa(self):
+        caja = self.vista.cajas["F"]
+        self.tipear(caja, "77")
+        caja.stop_typing()
+        self.vista.procesar([trama_senoidal(contador=1)])
+        self.assertEqual(caja.text, "50")
+        self.assertEqual(self.enviados, [])
+
+    def test_sincronizar_no_manda(self):
+        self.vista.procesar([trama_senoidal(contador=1, amp=0.09, f=40.0)])
+        self.assertEqual(self.vista.cajas["A"].text, "0.09")
+        self.assertEqual(self.enviados, [])
+
+    def test_tramas_salteadas_no_son_perdidas(self):
+        self.vista.procesar([trama_senoidal(contador=c) for c in (1, 2, 3)])
+        self.assertEqual(self.vista.perdidas, 0)
+        self.vista.procesar([trama_senoidal(contador=6)])
+        self.assertEqual(self.vista.perdidas, 2)
+
+    def test_se_prefiere_la_trama_del_escalon(self):
+        tr = [trama_senoidal(contador=1),
+              trama_senoidal(contador=2, flags=VT.FL_ESCALON, muestra_escalon=64),
+              trama_senoidal(contador=3)]
+        self.assertEqual(VisorCorriente.elegir_trama(tr).contador, 2)
+        self.assertEqual(VisorCorriente.elegir_trama(tr[:1] + tr[2:]).contador, 3)
+
 if __name__ == "__main__":
     unittest.main()

@@ -50,6 +50,14 @@ def limites(valores, span_min):
     return lo, hi
 
 
+def elegir_trama(tramas):
+    """Cual dibujar de las que se juntaron mientras la figura estaba ocupada:
+    la mas nueva, salvo que alguna tenga el escalon. La trama del escalon es
+    la razon de ser del visor; perderla por arrastrar la ventana no."""
+    con_escalon = [t for t in tramas if t.flags & VT.FL_ESCALON]
+    return (con_escalon or tramas)[-1]
+
+
 def abrir(args):
     if args.simular:
         import visor_sim
@@ -120,8 +128,6 @@ class Vista:
 
         self.titulo = self.fig.suptitle("esperando la primera trama...")
         self.cajas = {}
-        self._sincronizando = False
-        self._mostrado = {}
         if interactiva:
             from matplotlib.widgets import TextBox
             for letra, etiqueta, x in [("A", "I ref [pu] ", 0.17), ("F", "f_o [Hz] ", 0.58)]:
@@ -133,9 +139,21 @@ class Vista:
         self.perdidas = 0
 
     def _enviar(self, letra, texto):
-        if self._sincronizando:
-            return
+        """Manda SOLO con Enter. matplotlib dispara 'submit' tambien al perder
+        el foco (stop_typing, o sea cualquier clic fuera de la caja) y desde
+        set_val; los dos llegan con capturekeystrokes en False, y Enter llega
+        con True. Sin este filtro, un clic en el grafico mandaba lo que hubiera
+        en la caja -- "0.0" a medio escribir bajaba la corriente a cero."""
         caja = self.cajas[letra]
+        if not caja.capturekeystrokes:
+            return
+        # Enter no saca el foco: sin esto la caja seguiria "editandose", no se
+        # resincronizaria y el proximo clic volveria a mandar.
+        caja.eventson = False
+        try:
+            caja.stop_typing()
+        finally:
+            caja.eventson = True
         try:
             x = VT.numero_de_texto(texto)
             cmd = VT.comando_amp(x) if letra == "A" else VT.comando_frec(x)
@@ -147,23 +165,28 @@ class Vista:
         self.mandar(cmd)
 
     def _sincronizar_cajas(self, t):
-        """Las cajas muestran lo que tiene la placa, salvo mientras se edita."""
+        """Las cajas muestran lo que tiene la placa, salvo mientras se edita.
+        Una edicion abandonada (clic afuera sin Enter) vuelve al valor real.
+        set_val dispara 'submit', pero _enviar lo ignora: no hay foco."""
         valores = {"A": "%.4g" % (t.amp_ref / VM.Q24), "F": "%.4g" % (t.f_mhz / 1000.0)}
         for letra, caja in self.cajas.items():
-            if caja.capturekeystrokes or self._mostrado.get(letra) == valores[letra]:
-                continue
-            self._sincronizando = True
-            try:
+            if not caja.capturekeystrokes and caja.text != valores[letra]:
                 caja.set_val(valores[letra])
-            finally:
-                self._sincronizando = False
-            self._mostrado[letra] = valores[letra]
 
-    def actualizar(self, t):
-        self.perdidas += VM.tramas_perdidas(self.anterior, t.contador)
-        self.anterior = t.contador
+    def procesar(self, tramas):
+        """Todas las tramas llegadas cuentan para 'perdidas' y para la historia;
+        se dibuja una sola, la de elegir_trama()."""
+        ahora = time.monotonic() - self.t0
+        for t in tramas:
+            self.perdidas += VM.tramas_perdidas(self.anterior, t.contador)
+            self.anterior = t.contador
+            m = VM.metricas(t)
+            if m.valida:
+                self.hist.append((ahora, m.amp, m.amp_ref, m.freq, m.f_ref))
+        self.dibujar(elegir_trama(tramas), ahora)
+
+    def dibujar(self, t, ahora):
         m = VM.metricas(t)
-
         for linea, y in zip(self.l_i, VM.clarke_inversa(VM.a_pu(t.i_alfa), VM.a_pu(t.i_beta))):
             linea.set_ydata(y)
         for linea, y in zip(self.l_r, VM.clarke_inversa(VM.a_pu(t.ref_alfa), VM.a_pu(t.ref_beta))):
@@ -172,9 +195,6 @@ class Vista:
         tope = max(0.02, 1.15 * max(np.max(np.abs(l.get_ydata())) for l in self.l_i + self.l_r))
         self.ax.set_ylim(-tope, tope)
 
-        ahora = time.monotonic() - self.t0
-        if m.valida:
-            self.hist.append((ahora, m.amp, m.amp_ref, m.freq, m.f_ref))
         while self.hist and self.hist[0][0] < ahora - HISTORIA_S:
             self.hist.popleft()
         if self.hist:
@@ -206,7 +226,7 @@ def correr_png(args, fuente):
         for l in lineas:
             print(l)
         for t in tramas:
-            vista.actualizar(t)
+            vista.procesar([t])
             hechas += 1
             if hechas == 1:
                 for c in args.comando:
@@ -232,14 +252,14 @@ def correr_interactivo(fuente):
     plt.show(block=False)
     try:
         while plt.fignum_exists(vista.fig.number):
-            ultima = None
-            while True:             # si se acumularon, solo importa la mas nueva
+            llegadas = []
+            while True:
                 try:
-                    ultima = cola.get_nowait()
+                    llegadas.append(cola.get_nowait())
                 except queue.Empty:
                     break
-            if ultima is not None:
-                vista.actualizar(ultima)
+            if llegadas:
+                vista.procesar(llegadas)
             plt.pause(0.05)
     except KeyboardInterrupt:
         pass
