@@ -14,13 +14,13 @@ use ieee.numeric_std.all;
 -- Handshake:
 --
 --   i_arm='1'            -> queda armado; la foto anterior sigue intacta
---   flanco de i_trigger  -> captura las 13 entradas EN UN CICLO, desarma
+--   flanco de i_trigger  -> captura las 19 entradas EN UN CICLO, desarma
 --                           y pone o_listo='1'
 --   i_arm='0'            -> o_listo='0'; los registros SIGUEN congelados
 --
 -- Una sola captura por armado: aunque i_arm quede alto, los triggers
 -- siguientes no repisan la foto. Eso es lo que permite que el PS barra i_sel
--- con 12 transacciones AXI sin correr contra el Ts de 204,8 us del modulador.
+-- por las 20 ranuras sin correr contra el Ts de 204,8 us del modulador.
 --
 -- o_listo es NIVEL, no pulso: sirve tanto para polear por GPIO como para
 -- manejar IRQ_F2P del PS7, que el GIC toma sensible a nivel alto. Al desarmar
@@ -33,22 +33,27 @@ entity CaptureBank is
         i_clk     : in  std_logic;
         i_rst     : in  std_logic;
         i_arm     : in  std_logic;                      --! nivel, del PS: pide una muestra
-        i_trigger : in  std_logic;                      --! pulso del modulador (o_trg_calculo)
-        i_sel     : in  std_logic_vector(31 downto 0);  --! indice de registro (0..12), 13 = estado
+        i_trigger : in  std_logic;                      --! pulso de TrgRetardo (o_trg_calculo retardado)
+        i_sel     : in  std_logic_vector(31 downto 0);  --! ranura a leer (0..19), 13 = estado
 
-        i_d00, i_d01, i_d02 : in std_logic_vector(31 downto 0);  --! v_U, v_V, v_W
-        i_d03, i_d04, i_d05 : in std_logic_vector(31 downto 0);  --! vsw_U, vsw_V, vsw_W
-        i_d06, i_d07, i_d08 : in std_logic_vector(31 downto 0);  --! i_U, i_V, i_W
-        i_d09, i_d10        : in std_logic_vector(31 downto 0);  --! alfa, beta
-        i_d11, i_d12        : in std_logic_vector(31 downto 0);  --! theta_vi, direcciones
+        --! Lo que cablea create_bd.tcl en cada ranura. La entidad no depende de
+        --! esto, pero el software del PS y los scripts de Python si: si se
+        --! recablea el BD, actualizar aca.
+        i_d00, i_d01, i_d02 : in std_logic_vector(31 downto 0);  --! Vi_U, Vi_V, Vi_W (AC_Source)
+        i_d03               : in std_logic_vector(31 downto 0);  --! o_clamp de CtrlRegs, bits 15..0
+        i_d04, i_d05        : in std_logic_vector(31 downto 0);  --! Vo_U, Vo_V (SVM_wrapper)
+        i_d06, i_d07, i_d08 : in std_logic_vector(31 downto 0);  --! Io_U, Io_V, Io_W (planta; 0 sin planta)
+        i_d09, i_d10        : in std_logic_vector(31 downto 0);  --! i_alfa, i_beta medidas (ControlLazo)
+        i_d11               : in std_logic_vector(31 downto 0);  --! Vo_W (SVM_wrapper)
+        i_d12               : in std_logic_vector(31 downto 0);  --! o_direcciones, 18 bits
 
         --! Ranuras del lazo de corriente. Van en 14..19 y NO en 13, para que
         --! STATUS_IDX se quede donde esta y el software del PS que ya barre
         --! 0..13 siga funcionando sin recompilar.
-        i_d14, i_d15        : in std_logic_vector(31 downto 0);  --! i*alfa, i*beta
-        i_d16, i_d17        : in std_logic_vector(31 downto 0);  --! v*alfa, v*beta
-        i_d18               : in std_logic_vector(31 downto 0);  --! q + al_o + sat
-        i_d19               : in std_logic_vector(31 downto 0);  --! clamp de CtrlRegs
+        i_d14, i_d15        : in std_logic_vector(31 downto 0);  --! ref_alfa, ref_beta
+        i_d16, i_d17        : in std_logic_vector(31 downto 0);  --! v*alfa, v*beta (salida del PR)
+        i_d18               : in std_logic_vector(31 downto 0);  --! q (8..0), al_o (19..9), o_sat (20)
+        i_d19               : in std_logic_vector(31 downto 0);  --! x1_alfa, 32 bits bajos de Q8.40
 
         o_data    : out std_logic_vector(31 downto 0);
         o_listo   : out std_logic                       --! nivel: hay foto lista para leer
