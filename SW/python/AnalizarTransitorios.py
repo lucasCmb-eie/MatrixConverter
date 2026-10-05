@@ -146,15 +146,42 @@ def criterio4(da, db):
         fallas.append("anti-windup diferencial")
 
 
+def dir_de(base, prefijo):
+    """Resuelve el subdirectorio del escenario por PREFIJO.
+
+    correr_criterios.tcl los crea con nombres descriptivos (crit2_amplitud,
+    crit4a_freeze, ...) y aca estaban hardcodeados los cortos (crit2, crit4a),
+    asi que las dos mitades del mismo entregable no se encontraban y el analisis
+    moria con FileNotFoundError. Resolver por prefijo tolera los dos esquemas y
+    no se vuelve a desincronizar si alguien renombra.
+    """
+    cands = sorted(d for d in os.listdir(base)
+                   if d.startswith(prefijo) and
+                   os.path.isdir(os.path.join(base, d)))
+    if not cands:
+        raise SystemExit(
+            "No hay ningun subdirectorio que empiece con '%s' en %s. "
+            "Corriste correr_criterios.tcl? Cada escenario se espera como un "
+            "subdirectorio con su control_corriente.csv adentro."
+            % (prefijo, base))
+    if len(cands) > 1:
+        raise SystemExit(
+            "Hay %d subdirectorios que empiezan con '%s' en %s: %s. "
+            "No se puede decidir cual es el escenario." %
+            (len(cands), prefijo, base, ", ".join(cands)))
+    return os.path.join(base, cands[0])
+
+
 def main():
     base = sys.argv[1] if len(sys.argv) > 1 else "."
-    criterio1(os.path.join(base, "crit2"))
+    d2 = dir_de(base, "crit2")
+    criterio1(d2)
     print()
-    criterio2(os.path.join(base, "crit2"))
+    criterio2(d2)
     print()
-    criterio3(os.path.join(base, "crit3"))
+    criterio3(dir_de(base, "crit3"))
     print()
-    criterio4(os.path.join(base, "crit4a"), os.path.join(base, "crit4b"))
+    criterio4(dir_de(base, "crit4a"), dir_de(base, "crit4b"))
     print()
     if fallas:
         print("FALLAN %d criterios: %s" % (len(fallas), ", ".join(fallas)))

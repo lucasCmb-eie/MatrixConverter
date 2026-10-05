@@ -37,3 +37,18 @@ docs/
 # Artefactos de GHDL (verificacion local de los bloques VHDL-93)
 work-obj*.cf
 *.o
+
+# Plataformas de hardware exportadas: el .xsa lleva el bitstream adentro (varios
+# MB de binario) y se regenera desde el proyecto con
+#   write_hw_platform -fixed -include_bit -force <ruta>.xsa
+# Tambien el wrapper del BD, que lo genera make_wrapper -import.
+*.xsa
+HW/wrappers/
+
+# Logs y journals de Vivado (los deja cualquier corrida en batch, en la raiz)
+vivado*.jou
+vivado*.log
+xvhdl.pb
+xvlog.pb
+xelab.pb
+xsim.dir/

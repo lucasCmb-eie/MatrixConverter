@@ -23,7 +23,9 @@ architecture sim of tb_CaptureBank is
     signal listo : std_logic;
     signal done  : boolean := false;
 
-    type slv32_t is array (0 to 12) of std_logic_vector(31 downto 0);
+    -- 0..19: las ranuras nuevas del lazo van en 14..19. La 13 existe en el
+    -- array pero no se usa, porque ese indice lo ocupa el estado.
+    type slv32_t is array (0 to 19) of std_logic_vector(31 downto 0);
     signal src : slv32_t := (others => (others => '0'));
 
     procedure check (signal   got : in std_logic_vector(31 downto 0);
@@ -56,6 +58,9 @@ begin
                   i_d06 => src(6),  i_d07 => src(7),  i_d08 => src(8),
                   i_d09 => src(9),  i_d10 => src(10),
                   i_d11 => src(11), i_d12 => src(12),
+                  i_d14 => src(14), i_d15 => src(15),
+                  i_d16 => src(16), i_d17 => src(17),
+                  i_d18 => src(18), i_d19 => src(19),
                   o_data => d, o_listo => listo);
 
     estimulo : process
@@ -63,8 +68,11 @@ begin
         -- carga las 13 fuentes con base+k
         procedure poner_fuentes (constant base : in integer) is
         begin
-            for k in 0 to 12 loop
-                src(k) <= std_logic_vector(to_unsigned(base + k, 32));
+            for k in 0 to 19 loop
+                -- la 13 se saltea: ese indice lo ocupa el estado
+                if k /= 13 then
+                    src(k) <= std_logic_vector(to_unsigned(base + k, 32));
+                end if;
             end loop;
         end procedure;
 
@@ -189,7 +197,7 @@ begin
         check(d, x"00000001", "estado con listo alto");
         report "ESTADO OK: el indice 13 refleja o_listo";
 
-        -- la segunda captura sí tomo el patron nuevo (0x5000)
+        -- la segunda captura si tomo el patron nuevo (0x5000)
         for k in 0 to 12 loop
             sel <= std_logic_vector(to_unsigned(k, 32));
             wait for 1 ns;
@@ -200,7 +208,9 @@ begin
 
         for v in 0 to 2 loop
             case v is
-                when 0      => sel <= std_logic_vector(to_unsigned(14, 32));
+                -- 14 ya NO esta fuera de rango: con N_REGS = 20 es una
+                -- ranura valida. El primero que sigue afuera es el 20.
+                when 0      => sel <= std_logic_vector(to_unsigned(20, 32));
                 when 1      => sel <= std_logic_vector(to_unsigned(100, 32));
                 when others => sel <= x"FFFFFFFF";
             end case;
@@ -208,6 +218,51 @@ begin
             check(d, x"00000000", "fuera de rango");
         end loop;
         report "FUERA DE RANGO OK";
+
+        ------------------------------------------------------------------
+        -- 9) ranuras nuevas 14..19, y el indice de 5 bits
+        ------------------------------------------------------------------
+        -- Con el slice de 4 bits que habia antes, el indice 16 devolvia la
+        -- ranura 0, el 17 la 1, y asi: las ranuras nuevas eran inalcanzables
+        -- y el error no daba ninguna senal.
+        poner_fuentes(16#5A00#);
+        -- Hay que DESARMAR primero: despues del test anterior o_listo quedo
+        -- en '1', y con listo='1' el banco no vuelve a capturar aunque se le
+        -- ponga i_arm. Es el handshake de una sola captura por armado, y el
+        -- ack es el propio i_arm='0'.
+        arm <= '0';
+        wait until rising_edge(clk);
+        arm <= '1';
+        wait until rising_edge(clk);
+        trigger <= '1';
+        wait until rising_edge(clk);
+        trigger <= '0';
+        wait until rising_edge(clk);
+
+        for k in 14 to 19 loop
+            sel <= std_logic_vector(to_unsigned(k, 32));
+            wait for 1 ns;
+            check(d, std_logic_vector(to_unsigned(16#5A00# + k, 32)),
+                  "ranura nueva " & integer'image(k));
+        end loop;
+        report "RANURAS NUEVAS OK: el indice llega a 5 bits";
+
+        -- El estado tiene que seguir en 13: el software del PS que ya existe
+        -- barre 0..13 y lo lee ahi.
+        --
+        -- Se mira o_data, NO o_listo: o_listo no depende de i_sel en absoluto,
+        -- asi que aseverarla aca daria una cobertura falsa -- la asercion
+        -- pasaria con cualquier valor de sel.
+        sel <= std_logic_vector(to_unsigned(13, 32));
+        wait for 1 ns;
+        check(d, x"00000001", "el estado sigue en 13 (bit 0 = listo)");
+
+        -- i_sel con el bit 31 puesto. El PS escribe 32 bits; si se indexara
+        -- sin comparar antes como unsigned, el to_integer desbordaria.
+        sel <= x"80000010";
+        wait for 1 ns;
+        check(d, x"00000000", "i_sel con el bit 31 puesto");
+        report "INDICE ANCHO OK";
 
         report "TODAS LAS VERIFICACIONES OK";
         done <= true;
